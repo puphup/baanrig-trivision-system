@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iCL-RS Dual Motor Controller</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #242836;
+    --border: #2e3348;
+    --text: #e2e4ed;
+    --text-dim: #8b8fa3;
+    --accent: #5b8def;
+    --green: #34d399;
+    --red: #ef4444;
+    --orange: #f59e0b;
+    --radius: 8px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 20px;
+  }
+  h1 { font-size: 1.1rem; font-weight: 600; }
+  h2 { font-size: 0.85rem; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+
+  .header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 20px; background: var(--surface); border-radius: var(--radius);
+    margin-bottom: 16px; border: 1px solid var(--border);
+  }
+  .header-left { display: flex; align-items: center; gap: 20px; }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+    margin-right: 6px; vertical-align: middle;
+  }
+  .dot-ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot-err { background: var(--red); box-shadow: 0 0 6px var(--red); }
+
+  /* Tabs */
+  .tabs {
+    display: flex; gap: 4px;
+  }
+  .tab {
+    padding: 6px 16px; border-radius: 6px; cursor: pointer;
+    font-size: 0.78rem; font-weight: 600; font-family: inherit;
+    background: transparent; color: var(--text-dim); border: 1px solid transparent;
+    transition: all 0.15s;
+  }
+  .tab:hover { color: var(--text); background: var(--surface2); }
+  .tab.active { color: var(--accent); background: var(--surface2); border-color: var(--border); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px;
+  }
+
+  .motor-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat-box { background: var(--surface2); border-radius: 6px; padding: 10px 12px; }
+  .stat-label { font-size: 0.7rem; color: var(--text-dim); margin-bottom: 4px; }
+  .stat-value { font-size: 1.3rem; font-weight: 700; }
+
+  .flags { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .flag {
+    font-size: 0.65rem; padding: 3px 8px; border-radius: 12px;
+    background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border);
+  }
+  .flag.active { background: #1a3a2a; color: var(--green); border-color: #2a5a3a; }
+  .flag.alarm { background: #3a1a1a; color: var(--red); border-color: #5a2a2a; }
+
+  .controls-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  @media (max-width: 900px) { .grid, .controls-row { grid-template-columns: 1fr; } }
+
+  label { font-size: 0.7rem; color: var(--text-dim); display: block; margin-bottom: 4px; }
+  input, select {
+    width: 100%; padding: 8px 10px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-family: inherit; font-size: 0.85rem;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  .field { margin-bottom: 10px; }
+
+  button {
+    padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer;
+    font-family: inherit; font-size: 0.8rem; font-weight: 600; transition: opacity 0.15s;
+  }
+  button:hover { opacity: 0.85; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-warning { background: var(--orange); color: #000; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-lg { padding: 14px 24px; font-size: 1rem; width: 100%; }
+
+  .system-btns { display: flex; gap: 10px; margin-top: 12px; }
+
+  .seq-phase {
+    margin-top: 10px; padding: 8px 12px; background: var(--surface2);
+    border-radius: 6px; font-size: 0.8rem;
+  }
+  .seq-phase .phase-label { color: var(--accent); font-weight: 600; }
+
+  .angle-dial {
+    width: 80px; height: 80px; border-radius: 50%; border: 2px solid var(--border);
+    position: relative; margin: 8px auto;
+  }
+  .dial-needle {
+    position: absolute; bottom: 50%; left: 50%;
+    width: 2px; height: 35px; background: var(--accent);
+    transform-origin: bottom center; border-radius: 1px;
+  }
+
+  .config-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .config-grid { grid-template-columns: 1fr; } }
+  .config-section { margin-bottom: 6px; }
+  .config-section-title { font-size: 0.72rem; color: var(--accent); font-weight: 600; margin-bottom: 8px; }
+  .badge {
+    font-size: 0.6rem; padding: 2px 8px; border-radius: 10px; margin-left: 8px;
+    vertical-align: middle;
+  }
+  .badge-sim { background: #1a3a2a; color: var(--green); border: 1px solid #2a5a3a; }
+  .badge-hw { background: #1a2a4a; color: var(--accent); border: 1px solid #2a4a6a; }
+  .toast {
+    position: fixed; bottom: 20px; right: 20px; padding: 12px 20px;
+    background: var(--surface); border: 1px solid var(--accent); border-radius: 6px;
+    font-size: 0.8rem; color: var(--text); display: none; z-index: 100;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header with tabs -->
+<div class="header">
+  <div class="header-left">
+    <h1>iCL-RS Dual Motor Controller</h1>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('control')">Control</button>
+      <button class="tab" onclick="switchTab('connection')">Connection</button>
+    </div>
+  </div>
+  <div>
+    <span class="badge badge-sim" id="mode-badge">SIM</span>
+    <span class="status-dot dot-err" id="ws-dot"></span>
+    <span id="ws-label" style="font-size:0.75rem; color:var(--text-dim)">Disconnected</span>
+  </div>
+</div>
+
+<!-- ========== CONTROL TAB ========== -->
+<div class="tab-content active" id="tab-control">
+
+  <!-- Motor Status -->
+  <div class="grid">
+    <div class="card" id="m1-card">
+      <h2>Motor 1 (ID: 1)</h2>
+      <div class="angle-dial"><div class="dial-needle" id="m1-needle"></div></div>
+      <div class="motor-stats">
+        <div class="stat-box"><div class="stat-label">Position</div><div class="stat-value" id="m1-pos">0.00&deg;</div></div>
+        <div class="stat-box"><div class="stat-label">Velocity</div><div class="stat-value" id="m1-vel">0 rpm</div></div>
+      </div>
+      <div class="flags">
+        <span class="flag" id="m1-enabled">ENABLED</span>
+        <span class="flag" id="m1-running">RUNNING</span>
+        <span class="flag" id="m1-cmd-ok">CMD OK</span>
+        <span class="flag" id="m1-path-ok">PATH OK</span>
+        <span class="flag" id="m1-estop">E-STOP</span>
+        <span class="flag" id="m1-alarm">ALARM</span>
+      </div>
+    </div>
+    <div class="card" id="m2-card">
+      <h2>Motor 2 (ID: 2)</h2>
+      <div class="angle-dial"><div class="dial-needle" id="m2-needle"></div></div>
+      <div class="motor-stats">
+        <div class="stat-box"><div class="stat-label">Position</div><div class="stat-value" id="m2-pos">0.00&deg;</div></div>
+        <div class="stat-box"><div class="stat-label">Velocity</div><div class="stat-value" id="m2-vel">0 rpm</div></div>
+      </div>
+      <div class="flags">
+        <span class="flag" id="m2-enabled">ENABLED</span>
+        <span class="flag" id="m2-running">RUNNING</span>
+        <span class="flag" id="m2-cmd-ok">CMD OK</span>
+        <span class="flag" id="m2-path-ok">PATH OK</span>
+        <span class="flag" id="m2-estop">E-STOP</span>
+        <span class="flag" id="m2-alarm">ALARM</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls-row">
+    <!-- Manual Move -->
+    <div class="card">
+      <h2>Manual Move</h2>
+      <div class="field"><label>Motor ID</label><select id="mv-id"><option value="1">Motor 1</option><option value="2">Motor 2</option></select></div>
+      <div class="field"><label>Angle (&deg;)</label><input type="number" id="mv-angle" value="90"></div>
+      <div class="field"><label>Speed (rpm)</label><input type="number" id="mv-speed" value="200"></div>
+      <div class="field"><label>Accel (ms/1000rpm)</label><input type="number" id="mv-accel" value="200"></div>
+      <div class="field"><label>Decel (ms/1000rpm)</label><input type="number" id="mv-decel" value="200"></div>
+      <div class="field"><label>Mode</label><select id="mv-mode"><option value="relative">Relative</option><option value="absolute">Absolute</option></select></div>
+      <button class="btn-primary" onclick="doMove()">Move</button>
+    </div>
+
+    <!-- Sequence -->
+    <div class="card">
+      <h2>Dual-Motor Sequence</h2>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+        <div>
+          <div style="font-size:0.7rem; color:var(--accent); margin-bottom:6px; font-weight:600;">Motor 1</div>
+          <div class="field"><label>Angle (&deg;)</label><input type="number" id="seq-m1-angle" value="90"></div>
+          <div class="field"><label>Speed</label><input type="number" id="seq-m1-speed" value="200"></div>
+          <div class="field"><label>Accel</label><input type="number" id="seq-m1-accel" value="200"></div>
+          <div class="field"><label>Decel</label><input type="number" id="seq-m1-decel" value="200"></div>
+        </div>
+        <div>
+          <div style="font-size:0.7rem; color:var(--accent); margin-bottom:6px; font-weight:600;">Motor 2</div>
+          <div class="field"><label>Angle (&deg;)</label><input type="number" id="seq-m2-angle" value="180"></div>
+          <div class="field"><label>Speed</label><input type="number" id="seq-m2-speed" value="300"></div>
+          <div class="field"><label>Accel</label><input type="number" id="seq-m2-accel" value="200"></div>
+          <div class="field"><label>Decel</label><input type="number" id="seq-m2-decel" value="200"></div>
+        </div>
+      </div>
+      <div class="field"><label>Delay (s)</label><input type="number" id="seq-delay" value="1.0" step="0.1"></div>
+      <div class="field"><label>Mode</label><select id="seq-mode"><option value="relative">Relative</option><option value="absolute">Absolute</option></select></div>
+      <button class="btn-primary" onclick="doSequence()">Run Sequence</button>
+      <div class="seq-phase" id="seq-status">
+        Phase: <span class="phase-label" id="seq-phase">idle</span>
+      </div>
+    </div>
+
+    <!-- System -->
+    <div class="card">
+      <h2>System Commands</h2>
+      <button class="btn-danger btn-lg" onclick="doEstop()" style="margin-bottom:12px;">EMERGENCY STOP</button>
+      <button class="btn-primary" id="btn-enable" onclick="doToggleEnable()" style="width:100%; margin-bottom:10px;">Enable Motors</button>
+      <div class="system-btns">
+        <button class="btn-secondary" onclick="doHome(0)" style="flex:1;">Home All</button>
+        <button class="btn-secondary" onclick="doHome(1)" style="flex:1;">Home M1</button>
+        <button class="btn-secondary" onclick="doHome(2)" style="flex:1;">Home M2</button>
+      </div>
+      <div class="system-btns">
+        <button class="btn-secondary" onclick="doSetZero(0)" style="flex:1;">Set Zero All</button>
+        <button class="btn-secondary" onclick="doSetZero(1)" style="flex:1;">Set Zero M1</button>
+        <button class="btn-secondary" onclick="doSetZero(2)" style="flex:1;">Set Zero M2</button>
+      </div>
+      <div class="system-btns">
+        <button class="btn-warning" onclick="doAlarmReset(1)" style="flex:1;">Reset M1 Alarm</button>
+        <button class="btn-warning" onclick="doAlarmReset(2)" style="flex:1;">Reset M2 Alarm</button>
+      </div>
+      <div class="system-btns">
+        <button class="btn-secondary" onclick="doSave()" style="flex:1;">Save Parameters</button>
+      </div>
+      <div style="margin-top:16px; font-size:0.7rem; color:var(--text-dim);">
+        <kbd style="background:var(--surface2); padding:2px 6px; border-radius:3px; border:1px solid var(--border);">Esc</kbd> Emergency Stop
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ========== CONNECTION TAB ========== -->
+<div class="tab-content" id="tab-connection">
+  <div class="card">
+    <div class="config-grid">
+      <div class="config-section">
+        <div class="config-section-title">Protocol</div>
+        <div class="field"><label>Mode</label>
+          <select id="cfg-mode" onchange="updateModeUI()">
+            <option value="simulation">Simulation</option>
+            <option value="hardware">Modbus RTU (RS485)</option>
+            <option value="tcp">Modbus TCP</option>
+          </select>
+        </div>
+        <!-- RTU fields -->
+        <div id="rtu-fields">
+          <div class="field"><label>Serial Port</label>
+            <div style="display:flex; gap:6px;">
+              <select id="cfg-port" style="flex:1;"><option value="">-- scanning --</option></select>
+              <button class="btn-secondary" onclick="loadPorts(V('cfg-port').value)" style="padding:8px 10px; white-space:nowrap; font-size:0.7rem;">Refresh</button>
+            </div>
+          </div>
+          <div class="field"><label>Baud Rate</label>
+            <select id="cfg-baud"><option value="9600">9600</option><option value="19200">19200</option><option value="38400" selected>38400</option><option value="57600">57600</option><option value="115200">115200</option></select>
+          </div>
+          <div class="field"><label>Data Bits</label><input type="number" id="cfg-databits" value="8" min="7" max="8"></div>
+          <div class="field"><label>Parity</label>
+            <select id="cfg-parity"><option value="none" selected>None</option><option value="even">Even</option><option value="odd">Odd</option></select>
+          </div>
+          <div class="field"><label>Stop Bits</label>
+            <select id="cfg-stopbits"><option value="1" selected>1</option><option value="2">2</option></select>
+          </div>
+        </div>
+        <!-- TCP fields -->
+        <div id="tcp-fields" style="display:none;">
+          <div class="field"><label>Host / IP Address</label><input type="text" id="cfg-tcp-host" value="192.168.1.100"></div>
+          <div class="field"><label>Port</label><input type="number" id="cfg-tcp-port" value="502"></div>
+        </div>
+      </div>
+      <div class="config-section">
+        <div class="config-section-title">Motor IDs (DIP Switch)</div>
+        <div class="field"><label>Motor 1 Slave ID (1-31)</label><input type="number" id="cfg-m1id" value="1" min="1" max="31"></div>
+        <div class="field"><label>Motor 2 Slave ID (1-31)</label><input type="number" id="cfg-m2id" value="2" min="1" max="31"></div>
+        <div class="field"><label>Command P/R (motor setting)</label><input type="number" id="cfg-cmd-ppr" value="10000"></div>
+        <div class="field"><label>Encoder P/R (feedback)</label><input type="number" id="cfg-enc-ppr" value="65536"></div>
+      </div>
+      <div class="config-section">
+        <div class="config-section-title">Web Server</div>
+        <div class="field"><label>Host</label><input type="text" id="cfg-host" value="0.0.0.0"></div>
+        <div class="field"><label>Port</label><input type="number" id="cfg-srvport" value="8000"></div>
+        <div style="margin-top:16px; display:flex; flex-direction:column; gap:8px;">
+          <button class="btn-primary" onclick="saveConfig()" style="width:100%;">Save &amp; Apply</button>
+          <button class="btn-secondary" id="btn-test" onclick="doTestConnection()" style="width:100%;">Test Connection</button>
+          <div id="test-result" style="font-size:0.75rem; padding:8px 10px; border-radius:6px; display:none; white-space:pre-line;"></div>
+          <div style="font-size:0.65rem; color:var(--text-dim);">Changes require a server restart to take effect.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const V = (id) => document.getElementById(id);
+
+// --- Tabs ---
+function switchTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  V('tab-' + name).classList.add('active');
+  // highlight the clicked tab button
+  document.querySelectorAll('.tab').forEach(el => {
+    if (el.textContent.toLowerCase() === name) el.classList.add('active');
+  });
+}
+
+// --- WebSocket ---
+let ws;
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+  ws.onopen = () => { V('ws-dot').className = 'status-dot dot-ok'; V('ws-label').textContent = 'Connected'; };
+  ws.onclose = () => { V('ws-dot').className = 'status-dot dot-err'; V('ws-label').textContent = 'Disconnected'; setTimeout(connectWS, 2000); };
+  ws.onmessage = (e) => { try { updateUI(JSON.parse(e.data)); } catch {} };
+}
+connectWS();
+
+// --- UI Update ---
+function updateUI(data) {
+  for (const id of ['1','2']) {
+    const m = data.motors[id];
+    if (!m) continue;
+    const p = id === '1' ? 'm1' : 'm2';
+    V(`${p}-pos`).innerHTML = `${m.position_deg.toFixed(2)}&deg;`;
+    V(`${p}-vel`).textContent = `${m.velocity_rpm} rpm`;
+    V(`${p}-needle`).style.transform = `rotate(${m.position_deg}deg)`;
+    V(`${p}-enabled`).className = 'flag' + (m.enabled ? ' active' : '');
+    V(`${p}-running`).className = 'flag' + (m.running ? ' active' : '');
+    V(`${p}-cmd-ok`).className = 'flag' + ((m.status_bits & 0x10) ? ' active' : '');
+    V(`${p}-path-ok`).className = 'flag' + ((m.status_bits & 0x20) ? ' active' : '');
+    V(`${p}-estop`).className = 'flag' + (m.estopped ? ' alarm' : '');
+    V(`${p}-alarm`).className = 'flag' + (m.alarm ? ' alarm' : '');
+  }
+  // Update enable button based on motor state
+  const m1 = data.motors['1'], m2 = data.motors['2'];
+  motorsEnabled = (m1 && m1.enabled) || (m2 && m2.enabled);
+  const btn = V('btn-enable');
+  if (motorsEnabled) {
+    btn.textContent = 'Disable Motors';
+    btn.className = 'btn-secondary';
+  } else {
+    btn.textContent = 'Enable Motors';
+    btn.className = 'btn-primary';
+  }
+
+  const s = data.sequence;
+  V('seq-phase').textContent = s.phase + (s.error ? ` (${s.error})` : '');
+}
+
+// --- API calls ---
+async function api(path, body={}) {
+  const res = await fetch(`/api/${path}`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  return res.json();
+}
+
+function doMove() {
+  api('move', {
+    slave_id: parseInt(V('mv-id').value),
+    angle_deg: parseFloat(V('mv-angle').value),
+    speed_rpm: parseInt(V('mv-speed').value),
+    accel: parseInt(V('mv-accel').value),
+    decel: parseInt(V('mv-decel').value),
+    mode: V('mv-mode').value,
+  });
+}
+
+function doSequence() {
+  api('sequence', {
+    m1: { angle_deg: parseFloat(V('seq-m1-angle').value), speed_rpm: parseInt(V('seq-m1-speed').value), accel: parseInt(V('seq-m1-accel').value), decel: parseInt(V('seq-m1-decel').value) },
+    m2: { angle_deg: parseFloat(V('seq-m2-angle').value), speed_rpm: parseInt(V('seq-m2-speed').value), accel: parseInt(V('seq-m2-accel').value), decel: parseInt(V('seq-m2-decel').value) },
+    delay_s: parseFloat(V('seq-delay').value),
+    mode: V('seq-mode').value,
+  });
+}
+
+let motorsEnabled = false;
+
+function doEstop() { api('estop'); }
+function doHome(id) { api('home', { slave_id: id, speed_rpm: 200, accel: 200, decel: 200 }); }
+function doSetZero(id) { api('set-zero', { slave_id: id }); }
+function doToggleEnable() {
+  if (motorsEnabled) { api('disable'); } else { api('enable'); }
+}
+function doAlarmReset(id) { api('alarm-reset', { slave_id: id }); }
+function doSave() { api('save'); }
+
+// --- Config ---
+async function loadPorts(selectedPort) {
+  const sel = V('cfg-port');
+  try {
+    const res = await fetch('/api/ports');
+    const data = await res.json();
+    sel.innerHTML = '';
+    if (data.ports.length === 0) {
+      sel.innerHTML = '<option value="">No ports found</option>';
+    } else {
+      data.ports.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p; opt.textContent = p;
+        sel.appendChild(opt);
+      });
+    }
+    if (selectedPort) sel.value = selectedPort;
+  } catch {
+    sel.innerHTML = '<option value="">Error scanning</option>';
+  }
+}
+
+async function loadConfig() {
+  try {
+    const res = await fetch('/api/config');
+    const cfg = await res.json();
+    const c = cfg.connection || {};
+    const m = cfg.motors || {};
+    const s = cfg.server || {};
+    V('cfg-mode').value = c.mode || 'simulation';
+    await loadPorts(c.serial_port || '');
+    V('cfg-baud').value = String(c.baudrate || 38400);
+    V('cfg-databits').value = c.data_bits || 8;
+    V('cfg-parity').value = c.parity || 'none';
+    V('cfg-stopbits').value = String(c.stop_bits || 1);
+    V('cfg-tcp-host').value = c.tcp_host || '192.168.1.100';
+    V('cfg-tcp-port').value = c.tcp_port || 502;
+    V('cfg-m1id').value = m.motor1_slave_id || 1;
+    V('cfg-m2id').value = m.motor2_slave_id || 2;
+    V('cfg-cmd-ppr').value = m.command_ppr || 10000;
+    V('cfg-enc-ppr').value = m.encoder_ppr || 65536;
+    V('cfg-host').value = s.host || '0.0.0.0';
+    V('cfg-srvport').value = s.port || 8000;
+    updateModeBadge(c.mode || 'simulation');
+    updateModeUI();
+  } catch {}
+}
+
+function updateModeBadge(mode) {
+  const b = V('mode-badge');
+  if (mode === 'hardware') { b.textContent = 'RTU'; b.className = 'badge badge-hw'; }
+  else if (mode === 'tcp') { b.textContent = 'TCP'; b.className = 'badge badge-hw'; }
+  else { b.textContent = 'SIM'; b.className = 'badge badge-sim'; }
+}
+
+function updateModeUI() {
+  const mode = V('cfg-mode').value;
+  V('rtu-fields').style.display = mode === 'hardware' ? 'block' : 'none';
+  V('tcp-fields').style.display = mode === 'tcp' ? 'block' : 'none';
+  updateModeBadge(mode);
+}
+
+async function saveConfig() {
+  const body = {
+    connection: {
+      mode: V('cfg-mode').value,
+      serial_port: V('cfg-port').value,
+      baudrate: parseInt(V('cfg-baud').value),
+      data_bits: parseInt(V('cfg-databits').value),
+      parity: V('cfg-parity').value,
+      stop_bits: parseInt(V('cfg-stopbits').value),
+      tcp_host: V('cfg-tcp-host').value,
+      tcp_port: parseInt(V('cfg-tcp-port').value),
+    },
+    motors: {
+      motor1_slave_id: parseInt(V('cfg-m1id').value),
+      motor2_slave_id: parseInt(V('cfg-m2id').value),
+      command_ppr: parseInt(V('cfg-cmd-ppr').value),
+      encoder_ppr: parseInt(V('cfg-enc-ppr').value),
+    },
+    server: {
+      host: V('cfg-host').value,
+      port: parseInt(V('cfg-srvport').value),
+    },
+  };
+  const res = await api('config', body);
+  if (res.ok) showToast('Config saved. Restart server to apply changes.');
+}
+
+async function doTestConnection() {
+  const btn = V('btn-test');
+  const result = V('test-result');
+  btn.textContent = 'Testing...';
+  btn.disabled = true;
+  result.style.display = 'none';
+
+  // Save config first so the test uses current form values
+  await saveConfig();
+
+  try {
+    const res = await fetch('/api/test-connection', { method: 'POST', headers: {'Content-Type':'application/json'} });
+    const data = await res.json();
+    result.style.display = 'block';
+    if (data.ok) {
+      result.style.background = '#1a3a2a';
+      result.style.color = '#34d399';
+      result.style.border = '1px solid #2a5a3a';
+      let msg = 'Connection OK!';
+      if (data.motors) {
+        msg += data.motors.map(m => `\nMotor ${m.slave_id}: OK (status: 0x${m.status.toString(16).toUpperCase()})`).join('');
+      }
+      result.textContent = msg;
+    } else {
+      result.style.background = '#3a1a1a';
+      result.style.color = '#ef4444';
+      result.style.border = '1px solid #5a2a2a';
+      let msg = 'Connection Failed';
+      if (data.error) {
+        msg += `: ${data.error}`;
+      } else if (data.motors) {
+        const failed = data.motors.filter(m => !m.ok);
+        msg += '\n' + failed.map(m => `Motor ${m.slave_id}: ${m.error}`).join('\n');
+      }
+      result.textContent = msg;
+    }
+  } catch (e) {
+    result.style.display = 'block';
+    result.style.background = '#3a1a1a';
+    result.style.color = '#ef4444';
+    result.style.border = '1px solid #5a2a2a';
+    result.textContent = `Error: ${e.message}`;
+  }
+  btn.textContent = 'Test Connection';
+  btn.disabled = false;
+}
+
+function showToast(msg) {
+  const t = V('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 4000);
+}
+
+loadConfig();
+
+// Keyboard shortcut
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') doEstop(); });
+</script>
+</body>
+</html>
