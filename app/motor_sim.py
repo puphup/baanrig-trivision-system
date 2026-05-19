@@ -38,16 +38,25 @@ class MotorSim:
                 pass
 
     def start_move(self, mode: int, pos_pulses: int, velocity: int, accel: int, decel: int):
-        """Begin a new motion command."""
+        """Begin a new motion command.
+
+        `pos_pulses` arrives in *command* pulses (Pr0.01 / COMMAND_PPR). The internal
+        `self.position` is kept in *encoder* pulses so it matches what real hardware
+        reports back over Modbus. Scale the incoming target so the two unit systems
+        line up — otherwise feedback reads ENCODER_PPR/COMMAND_PPR times too small.
+        """
         if self.estopped or not self.enabled:
             return
 
         from .registers import MODE_ABSOLUTE, MODE_RELATIVE
 
+        ratio = registers.ENCODER_PPR / registers.COMMAND_PPR if registers.COMMAND_PPR else 1.0
+        target_enc = float(pos_pulses) * ratio
+
         if mode == MODE_ABSOLUTE:
-            self.target_position = float(pos_pulses)
+            self.target_position = target_enc
         elif mode == MODE_RELATIVE:
-            self.target_position = self.position + float(pos_pulses)
+            self.target_position = self.position + target_enc
         else:
             return
 
@@ -129,7 +138,7 @@ class MotorSim:
             return
 
         # Convert target_velocity (rpm) to pulses/sec
-        max_pps = self.target_velocity * registers.COMMAND_PPR / 60.0
+        max_pps = self.target_velocity * registers.ENCODER_PPR / 60.0
 
         # Acceleration rate: accel_ms is ms to go from 0 to 1000rpm
         # So rate in rpm/s = 1000 / (accel_ms / 1000) = 1_000_000 / accel_ms
@@ -137,10 +146,10 @@ class MotorSim:
         decel_rpms = 1_000_000.0 / self.decel_ms if self.decel_ms > 0 else 5000.0
 
         # Convert to pulses/s^2
-        accel_pps2 = accel_rpms * registers.COMMAND_PPR / 60.0
-        decel_pps2 = decel_rpms * registers.COMMAND_PPR / 60.0
+        accel_pps2 = accel_rpms * registers.ENCODER_PPR / 60.0
+        decel_pps2 = decel_rpms * registers.ENCODER_PPR / 60.0
 
-        current_pps = abs(self.velocity) * registers.COMMAND_PPR / 60.0
+        current_pps = abs(self.velocity) * registers.ENCODER_PPR / 60.0
 
         # Stopping distance at current speed
         stopping_dist = (current_pps ** 2) / (2.0 * decel_pps2) if decel_pps2 > 0 else 0
@@ -161,7 +170,7 @@ class MotorSim:
         self.position += step
 
         # Convert back to rpm for status
-        self.velocity = current_pps * 60.0 / registers.COMMAND_PPR if registers.COMMAND_PPR > 0 else 0.0
+        self.velocity = current_pps * 60.0 / registers.ENCODER_PPR if registers.ENCODER_PPR > 0 else 0.0
 
         # Overshoot check
         new_remaining = self.target_position - self.position

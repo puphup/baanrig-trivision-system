@@ -610,7 +610,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) stopJ
 window.addEventListener('beforeunload', stopJog);
 
 function doEstop() { api('estop'); }
-function doHome(id) { api('home', { slave_id: id, speed_rpm: 200, accel: 200, decel: 200 }); }
+function doHome(id) { api('home', { slave_id: id, speed_rpm: 20, accel: 200, decel: 200 }); }
 function doSetZero(id) { api('set-zero', { slave_id: id }); }
 function doToggleEnable() { if (motorsEnabled) { api('disable'); } else { api('enable'); } }
 function doAlarmReset(id) { api('alarm-reset', { slave_id: id }); }

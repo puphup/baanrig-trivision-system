@@ -10,6 +10,9 @@ build/
 dist/
 *.spec.bak
 
+# Local copy of downloaded release exe — not source-of-truth
+windows-build/
+
 # OS / editor
 .DS_Store
 .vscode/

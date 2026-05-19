@@ -1,7 +1,7 @@
 {
   "connection": {
-    "mode": "simulation",
-    "serial_port": "/dev/cu.Bluetooth-Incoming-Port",
+    "mode": "hardware",
+    "serial_port": "/dev/cu.usbserial-2120",
     "baudrate": 38400,
     "data_bits": 8,
     "parity": "none",
@@ -12,10 +12,7 @@
   "motors": {
     "slave_ids": [
       1,
-      2,
-      3,
-      4,
-      5
+      2
     ],
     "command_ppr": 10000,
     "encoder_ppr": 65536

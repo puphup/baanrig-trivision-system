@@ -131,7 +131,7 @@ class AlarmResetRequest(BaseModel):
 
 class HomeRequest(BaseModel):
     slave_id: int = 0  # 0 = all motors, otherwise a specific slave_id
-    speed_rpm: int = 200
+    speed_rpm: int = 20      # Homing is safety-sensitive — slow by default.
     accel: int = 200
     decel: int = 200
 
@@ -313,60 +313,49 @@ async def disable_motors():
 
 @app.get("/api/ports")
 async def list_serial_ports():
-    """Detect available serial ports on the system."""
+    """Detect available serial ports on the system.
+
+    On macOS we deliberately drop /dev/tty.* entries — the tty interface blocks
+    waiting for a hardware DCD signal that USB-RS485 adapters don't provide, so
+    opening it just hangs or errors. /dev/cu.* is the correct non-blocking dial-out
+    interface for serial bridges.
+    """
     import glob as g
     import sys
     ports = []
     if sys.platform.startswith("darwin"):
-        ports = g.glob("/dev/tty.*") + g.glob("/dev/cu.*")
+        ports = g.glob("/dev/cu.*")
     elif sys.platform.startswith("linux"):
         ports = g.glob("/dev/ttyUSB*") + g.glob("/dev/ttyACM*") + g.glob("/dev/ttyS*")
     elif sys.platform.startswith("win"):
         ports = [f"COM{i}" for i in range(1, 20)]
-    # Filter to only ports that actually exist (Windows COM check)
     ports.sort()
     return {"ports": ports}
 
 
 @app.post("/api/test-connection")
 async def test_connection():
-    """Test connection by pinging every configured motor via the configured protocol."""
-    conn = config["connection"]
-    ids = _slave_ids()
-    mode = conn.get("mode", "simulation")
+    """Ping every configured motor via the *currently active* connection.
 
-    if mode == "simulation":
+    We deliberately reuse the live modbus client (built in lifespan()) instead
+    of opening a fresh one. Two clients can't share the same serial port, so a
+    fresh client would always fail with "Cannot open" while the server is up.
+    The trade-off: this tests the running connection, not the in-form values —
+    so changes need to be saved and the server restarted before the test
+    reflects them. The UI already communicates that with "restart required".
+    """
+    ids = _slave_ids()
+
+    if isinstance(modbus, SimulatedModbus):
         return {"ok": True, "motors": [
             {"ok": True, "slave_id": sid, "status": 0} for sid in ids
         ]}
 
+    if not isinstance(modbus, (RealModbus, TcpModbus)):
+        return {"ok": False, "error": "No active modbus client"}
+
     try:
-        if mode == "tcp":
-            test_client = TcpModbus(
-                host=conn.get("tcp_host", "192.168.1.100"),
-                port=conn.get("tcp_port", 502),
-            )
-            connected = await test_client.connect()
-            if not connected:
-                return {"ok": False, "error": f"Cannot connect to {conn.get('tcp_host')}:{conn.get('tcp_port')}"}
-        else:
-            test_client = RealModbus(
-                port=conn["serial_port"],
-                baudrate=conn["baudrate"],
-                data_bits=conn.get("data_bits", 8),
-                parity=conn.get("parity", "none"),
-                stop_bits=conn.get("stop_bits", 1),
-            )
-            connected = await test_client.connect()
-            if not connected:
-                return {"ok": False, "error": f"Cannot open {conn['serial_port']}"}
-
-        results = []
-        for sid in ids:
-            r = await test_client.test_connection(sid)
-            results.append(r)
-
-        await test_client.disconnect()
+        results = [await modbus.test_connection(sid) for sid in ids]
         all_ok = all(r["ok"] for r in results)
         return {"ok": all_ok, "motors": results}
     except Exception as e:
@@ -408,6 +397,14 @@ async def update_config(new_cfg: dict):
     for section in ["connection", "motors", "server"]:
         if section in new_cfg:
             config.setdefault(section, {}).update(new_cfg[section])
+
+    # On macOS, normalize /dev/tty.usb* → /dev/cu.usb*. The tty interface blocks
+    # on DCD and never works for USB-RS485 adapters; users shouldn't have to know
+    # this. (Harmless on Linux/Windows since paths don't match the prefix.)
+    sp = config.get("connection", {}).get("serial_port", "")
+    if sp.startswith("/dev/tty.usb"):
+        config["connection"]["serial_port"] = sp.replace("/dev/tty.", "/dev/cu.", 1)
+
     save_config(config)
     return {"ok": True, "config": config, "restart_required": True}
 
