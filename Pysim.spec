@@ -44,6 +44,10 @@ a = Analysis(
     binaries=[],
     datas=[
         ("static", "static"),
+        # Ship config.json as the built-in default (50-motor / 3-gateway setup).
+        # The loader seeds from this when there's no config.json next to the exe;
+        # Save & Apply then writes a persistent copy beside the exe.
+        ("config.json", "."),
     ],
     hiddenimports=hidden,
     hookspath=[],

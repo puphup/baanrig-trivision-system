@@ -247,12 +247,26 @@ def _normalize(cfg: dict) -> dict:
     return cfg
 
 
+def _bundled_default_path() -> Path | None:
+    """config.json shipped inside the frozen bundle (sys._MEIPASS), used as the
+    built-in default when there's no config.json next to the exe yet."""
+    env = os.environ.get("PYSIM_RESOURCE_ROOT")
+    return Path(env) / "config.json" if env else None
+
+
 def load_config() -> dict:
     if CONFIG_PATH.exists():
         with open(CONFIG_PATH) as f:
             raw = json.load(f)
     else:
-        raw = {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in DEFAULTS.items()}
+        # No local config next to the exe → seed from the bundled default
+        # (the 50-motor / 3-gateway setup), falling back to DEFAULTS.
+        bundled = _bundled_default_path()
+        if bundled and bundled.exists() and bundled != CONFIG_PATH:
+            with open(bundled) as f:
+                raw = json.load(f)
+        else:
+            raw = {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in DEFAULTS.items()}
     return _normalize(raw)
 
 
