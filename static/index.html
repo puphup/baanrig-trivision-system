@@ -122,6 +122,10 @@
     display: flex; justify-content: space-between; align-items: center;
     margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
   }
+  /* Collapsed focus panel: keep the header, hide the controls. */
+  .focus-panel.collapsed .focus-stats,
+  .focus-panel.collapsed .focus-grid { display: none; }
+  .focus-panel.collapsed .focus-header { padding-bottom: 0; border-bottom: none; margin-bottom: 0; }
   .focus-title { display: flex; align-items: center; gap: 10px; font-weight: 600; }
   .focus-title .label { font-size: 0.95rem; color: var(--accent); }
   .focus-title .sub { font-size: 0.7rem; color: var(--text-dim); }
@@ -429,7 +433,10 @@
           <span class="label" id="focus-label">—</span>
           <span class="sub" id="focus-sub">click any tile below to select</span>
         </div>
-        <div class="t-dots" id="focus-dots"></div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="t-dots" id="focus-dots"></div>
+          <button type="button" class="btn-sm" id="btn-focus-toggle" onclick="toggleFocusPanel()" title="Show/hide the selected-motor controls">Hide</button>
+        </div>
       </div>
 
       <div class="focus-stats">
@@ -777,14 +784,26 @@ function renderMotorGrid(d) {
   }
 }
 
+// Selected-motor panel show/hide, persisted across refreshes.
+function applyFocusCollapsed() {
+  const collapsed = localStorage.getItem('focusCollapsed') === '1';
+  V('focus-panel').classList.toggle('collapsed', collapsed);
+  V('btn-focus-toggle').textContent = collapsed ? 'Show' : 'Hide';
+}
+function toggleFocusPanel() {
+  const collapsed = localStorage.getItem('focusCollapsed') === '1';
+  localStorage.setItem('focusCollapsed', collapsed ? '0' : '1');
+  applyFocusCollapsed();
+}
+
 function selectMotor(key) {
   const isUserClick = (typeof event !== 'undefined' && event && event.isTrusted);
   selectedKey = key;
   $$('.tile').forEach(t => t.classList.toggle('selected', t.dataset.key === key));
   renderFocus(lastData);
   // Pull the focus panel into view if the user clicked a tile far below it.
-  // Don't scroll on the silent first-load auto-selection.
-  if (isUserClick) {
+  // Don't scroll on the silent first-load auto-selection. Skip when collapsed.
+  if (isUserClick && !V('focus-panel').classList.contains('collapsed')) {
     const panel = V('focus-panel');
     const r = panel.getBoundingClientRect();
     if (r.top < 0 || r.top > window.innerHeight * 0.5) {
@@ -1248,6 +1267,7 @@ function showToast(msg, type) {
 // ============================ Init ============================
 loadSetup();
 loadShowEffects();
+applyFocusCollapsed();
 </script>
 </body>
 </html>
