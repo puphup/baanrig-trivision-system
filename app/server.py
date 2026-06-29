@@ -713,50 +713,73 @@ async def _broadcast_loop():
             data = await _build_status()
         except Exception:
             continue
-        dead = []
-        for ws in ws_clients:
+
+        # Send to all clients CONCURRENTLY with a per-client timeout. A single
+        # half-open tab used to block every other client (sends were sequential
+        # + unbounded), stalling the whole feed. Now a slow/dead client is
+        # dropped after 2s without affecting the others.
+        clients = list(ws_clients)
+
+        async def _send(ws):
             try:
-                await ws.send_json(data)
+                await asyncio.wait_for(ws.send_json(data), timeout=2.0)
+                return None
             except Exception:
-                dead.append(ws)
-        for ws in dead:
-            ws_clients.discard(ws)
+                return ws
+
+        results = await asyncio.gather(*(_send(ws) for ws in clients))
+        for ws in results:
+            if ws is not None:
+                ws_clients.discard(ws)
+
+
+_OFFLINE_ST = {
+    "position_deg": 0.0, "position_pulses": 0, "velocity_rpm": 0,
+    "running": False, "enabled": False, "estopped": False,
+    "alarm": 0, "status_bits": 0, "offline": True, "current_face": None,
+}
+
+
+async def _read_one_status(key: str) -> dict:
+    """Read + post-process one motor. Returns an offline dict on any failure so
+    a single dead drive can't break the whole status build."""
+    d = drivers.get(key)
+    if d is None:
+        return dict(_OFFLINE_ST)
+    try:
+        st = await d.read_status()
+    except Exception:
+        return dict(_OFFLINE_ST)
+    if not st.get("offline"):
+        raw_pulses = int(st.get("position_pulses", 0))
+        display_pulses = raw_pulses - zero_offsets.get(key, 0)
+        st["position_pulses"] = display_pulses
+        st["position_deg"] = round(d.pulses_to_deg(display_pulses), 2)  # per-driver PPR
+        st["current_face"] = face_for_position(st["position_deg"])
+    else:
+        st["current_face"] = None
+    return dict(st)
 
 
 async def _build_status() -> dict:
-    """Read live status for every driver and emit a flat motor-keyed dict."""
-    motors_out: dict[str, dict] = {}
-    inventory: list[dict] = []
+    """Read live status for every driver and emit a flat motor-keyed dict.
 
-    for spec in _motor_specs():
-        key = build_motor_key(spec["gateway"], spec["slave_id"])
-        label = motor_label(spec["gateway"], spec["slave_id"])
-        inventory.append({
-            "motor_key": key,
-            "label": label,
-            "gateway": spec["gateway"],
-            "slave_id": int(spec["slave_id"]),
-            "driver_type": spec["driver_type"],
-        })
-        d = drivers.get(key)
-        if d is None:
-            motors_out[key] = {
-                "position_deg": 0.0, "position_pulses": 0, "velocity_rpm": 0,
-                "running": False, "enabled": False, "estopped": False,
-                "alarm": 0, "status_bits": 0, "offline": True,
-            }
-            continue
+    Reads run CONCURRENTLY — same-gateway reads still serialize on that
+    gateway's modbus lock, but the gateways overlap, so 50 motors across 3
+    gateways take ~1/3 the wall-clock of a sequential loop. (Sequential was
+    ~2.4s and choked the WS broadcast / keepalive.)"""
+    specs = _motor_specs()
+    inventory = [{
+        "motor_key": build_motor_key(s["gateway"], s["slave_id"]),
+        "label": motor_label(s["gateway"], s["slave_id"]),
+        "gateway": s["gateway"],
+        "slave_id": int(s["slave_id"]),
+        "driver_type": s["driver_type"],
+    } for s in specs]
 
-        st = await d.read_status()
-        if not st.get("offline"):
-            raw_pulses = int(st.get("position_pulses", 0))
-            display_pulses = raw_pulses - zero_offsets.get(key, 0)
-            st["position_pulses"] = display_pulses
-            st["position_deg"] = round(d.pulses_to_deg(display_pulses), 2)  # per-driver PPR
-            st["current_face"] = face_for_position(st["position_deg"])
-        else:
-            st["current_face"] = None
-        motors_out[key] = dict(st)
+    keys = [it["motor_key"] for it in inventory]
+    results = await asyncio.gather(*(_read_one_status(k) for k in keys))
+    motors_out = {k: st for k, st in zip(keys, results)}
 
     seq_info = (
         {"phase": sequencer.phase, "active": sequencer.active, "error": sequencer.error}
