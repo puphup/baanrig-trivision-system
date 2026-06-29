@@ -1,7 +1,7 @@
 # Building the Windows .exe (offline-friendly)
 
 The target Windows PC does **not** need Python, pip, or an internet connection.
-It just needs the single `iCL-RS-Controller.exe` that you build below.
+It just needs the single `Baanrig-Trivision.exe` that you build below.
 
 ## On the build machine (one-time setup)
 
@@ -23,14 +23,14 @@ The script will:
 When it finishes you'll have:
 
 ```
-dist\iCL-RS-Controller.exe       (~50-80 MB single file)
+dist\Baanrig-Trivision.exe       (~50-80 MB single file)
 ```
 
 ## Deploying to the offline target PC
 
 Copy these to any folder on the target PC:
 
-- `iCL-RS-Controller.exe`  — the app
+- `Baanrig-Trivision.exe`  — the app
 - `config.json`            — *optional*; if missing, the app starts with built-in
                               defaults (simulation mode, motors 1 & 2). Edits from
                               the Connection tab in the UI are saved back here, so

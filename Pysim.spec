@@ -1,6 +1,6 @@
-# PyInstaller build spec for iCL-RS-Controller (Windows single-file .exe).
+# PyInstaller build spec for Baanrig-Trivision (Windows single-file .exe).
 # Build with:  pyinstaller --clean --noconfirm Pysim.spec
-# Output:      dist\iCL-RS-Controller.exe
+# Output:      dist\Baanrig-Trivision.exe
 #
 # The resulting .exe is fully self-contained — no Python, no internet, no pip
 # install needed on the target Windows machine.
@@ -68,7 +68,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name="iCL-RS-Controller",
+    name="Baanrig-Trivision",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

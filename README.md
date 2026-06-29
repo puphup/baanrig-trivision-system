@@ -1,17 +1,19 @@
-# iCL-RS Multi-Motor Controller
+# Baanrig Trivision System
 
-A small web-based control panel for **Leadshine iCL-RS** (and compatible) closed-loop
-stepper / servo drives. Supports up to **5 motors** over **Modbus RTU (RS485)** or
-**Modbus TCP**, plus a built-in simulation mode for testing without hardware.
+Multi-gateway controller for a **Trivision / triangular-prism advertising display** —
+each motor turns a 3-faced prism, and the app flips the whole array between faces with
+synchronized starts and selectable transition effects. Drives **Leadshine iCL-RS** and
+**TL-R** motors across multiple **Modbus-TCP→RTU gateways** (up to ~50 motors), with a
+built-in simulation mode for hardware-free testing.
 
 Runs as a single double-clickable Windows `.exe` (no Python, no installer, no internet
 needed) or directly from source on macOS / Linux / Windows.
 
 ## Download (Windows)
 
-**[⬇ Download the latest iCL-RS-Controller.exe](https://github.com/puphup/icl-rs-motor-controller/releases/latest/download/iCL-RS-Controller.exe)**
+**[⬇ Download the latest Baanrig-Trivision.exe](https://github.com/puphup/baanrig-trivision-system/releases/latest/download/Baanrig-Trivision.exe)**
 
-Or browse [all releases](https://github.com/puphup/icl-rs-motor-controller/releases).
+Or browse [all releases](https://github.com/puphup/baanrig-trivision-system/releases).
 
 To run: copy the `.exe` to any folder on a Windows 10/11 PC and double-click. A
 console window appears with logs, and your default browser opens to
@@ -36,7 +38,7 @@ console window appears with logs, and your default browser opens to
 
 ## Quick start (Windows, end user)
 
-1. Download `iCL-RS-Controller.exe` (link above).
+1. Download `Baanrig-Trivision.exe` (link above).
 2. Plug your USB ↔ RS485 adapter in (for RTU) or note the drive's IP (for TCP).
 3. Double-click the exe.
 4. In the **Connection** tab, pick the right mode + port / host, list the motor
@@ -52,8 +54,8 @@ by hand if you prefer.
 Requires Python 3.11+.
 
 ```bash
-git clone https://github.com/puphup/icl-rs-motor-controller.git
-cd icl-rs-motor-controller
+git clone https://github.com/puphup/baanrig-trivision-system.git
+cd baanrig-trivision-system
 python -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt
@@ -84,7 +86,7 @@ push, and attaches it to a GitHub Release on every tag.
 ### Option B — Local Windows build
 
 See [BUILD_WINDOWS.md](BUILD_WINDOWS.md). TL;DR: install Python 3.11+, double-click
-`build_windows.bat`, find the output in `dist\iCL-RS-Controller.exe`.
+`build_windows.bat`, find the output in `dist\Baanrig-Trivision.exe`.
 
 ## Configuration reference
 

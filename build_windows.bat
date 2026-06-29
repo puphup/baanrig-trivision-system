@@ -1,13 +1,13 @@
 @echo off
 REM ============================================================
-REM  Build iCL-RS-Controller.exe for offline Windows distribution
+REM  Build Baanrig-Trivision.exe for offline Windows distribution
 REM ============================================================
 REM  Prerequisites on the BUILD machine (one time only):
 REM    - Windows 10/11
 REM    - Python 3.11 or newer  (https://www.python.org/downloads/)
 REM    - Internet connection (to pip-install the deps once)
 REM
-REM  The resulting dist\iCL-RS-Controller.exe needs NEITHER Python NOR
+REM  The resulting dist\Baanrig-Trivision.exe needs NEITHER Python NOR
 REM  internet on the target machine — copy it over and double-click.
 
 setlocal
@@ -47,10 +47,10 @@ if errorlevel 1 (
 
 echo.
 echo ============================================================
-echo  Done!  Output: dist\iCL-RS-Controller.exe
+echo  Done!  Output: dist\Baanrig-Trivision.exe
 echo.
 echo  Distribute by copying these two files to the target PC:
-echo    dist\iCL-RS-Controller.exe
+echo    dist\Baanrig-Trivision.exe
 echo    config.json   (optional — exe auto-creates defaults if missing)
 echo ============================================================
 echo.

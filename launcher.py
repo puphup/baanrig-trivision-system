@@ -56,7 +56,7 @@ def _open_browser_when_ready(url: str, delay: float = 1.5) -> None:
 
 def main() -> None:
     import argparse, asyncio
-    p = argparse.ArgumentParser(prog="iCL-RS Controller")
+    p = argparse.ArgumentParser(prog="Baanrig Trivision System")
     p.add_argument(
         "--setup-iclrs-enable",
         action="store_true",
