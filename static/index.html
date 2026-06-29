@@ -630,14 +630,28 @@ function switchTab(name) {
 
 // ============================ WebSocket ============================
 let ws;
+let lastWsMsg = 0;            // timestamp of last status frame
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws`);
-  ws.onopen   = () => { V('ws-dot').className = 'status-dot dot-ok';  V('ws-label').textContent = 'Connected'; };
+  ws.onopen   = () => { V('ws-dot').className = 'status-dot dot-ok';  V('ws-label').textContent = 'Connected'; lastWsMsg = Date.now(); };
   ws.onclose  = () => { V('ws-dot').className = 'status-dot dot-err'; V('ws-label').textContent = 'Disconnected'; setTimeout(connectWS, 2000); };
-  ws.onmessage = (e) => { try { onStatus(JSON.parse(e.data)); } catch {} };
+  ws.onmessage = (e) => { lastWsMsg = Date.now(); try { onStatus(JSON.parse(e.data)); } catch {} };
 }
 connectWS();
+
+// Staleness watchdog: a half-open socket (e.g. after the PC sleeps) keeps
+// readyState=OPEN and never fires onclose, so the page silently freezes on
+// old data. If no status frame has arrived for 6s, force a reconnect.
+setInterval(() => {
+  if (!ws) return;
+  const quiet = Date.now() - lastWsMsg;
+  if (ws.readyState === WebSocket.OPEN && quiet > 6000) {
+    V('ws-dot').className = 'status-dot dot-warn';
+    V('ws-label').textContent = 'Reconnecting…';
+    try { ws.close(); } catch {}   // triggers onclose → reconnect
+  }
+}, 3000);
 
 // ============================ Status / Render ============================
 function onStatus(data) {
