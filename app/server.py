@@ -95,21 +95,28 @@ async def _build_runtime(cfg: dict):
 
     mode = cfg.get("mode", "simulation")
     if mode == "tcp":
-        for gw in cfg.get("gateways", []):
-            client = TcpModbus(host=gw["host"], port=int(gw["port"]))
+        # Connect all gateways concurrently and don't block long on any one —
+        # the drivers self-heal/reconnect on first use anyway. A sequential
+        # connect to an unreachable gateway would stall startup for seconds.
+        gws = cfg.get("gateways", [])
+        clients = {gw["id"]: TcpModbus(host=gw["host"], port=int(gw["port"])) for gw in gws}
+        async def _try_connect(c):
             try:
-                await client.connect()
+                await c.connect()
             except Exception:
                 pass
-            new_gws[gw["id"]] = client
+        await asyncio.gather(*(_try_connect(c) for c in clients.values()))
+        new_gws.update(clients)
         for m in cfg.get("motors", []):
             client = new_gws.get(m["gateway"])
             if client is None:
                 continue
             key = build_motor_key(m["gateway"], m["slave_id"])
-            d = make_hardware_driver(m["driver_type"], client, int(m["slave_id"]))
-            await d.configure()      # writes S-curve filter on iCL-RS, no-op elsewhere
-            new_drivers[key] = d
+            # NOTE: no per-startup configure() here. The command filter is
+            # persisted to EEPROM during commissioning (--setup-iclrs-enable),
+            # so writing it on every launch is redundant and would block startup
+            # with 36 sequential modbus writes (each retrying on a flaky link).
+            new_drivers[key] = make_hardware_driver(m["driver_type"], client, int(m["slave_id"]))
     else:
         for m in cfg.get("motors", []):
             key = build_motor_key(m["gateway"], m["slave_id"])
