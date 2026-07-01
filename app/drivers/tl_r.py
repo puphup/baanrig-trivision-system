@@ -199,7 +199,8 @@ class TLRDriver(MotorDriver):
     async def stage_move(self, mode, angle_deg, speed_rpm, accel, decel):
         """Write the single-positioning params (PA_034..038) but don't trigger.
         Remembers the mode so :meth:`trigger_move` knows abs vs rel."""
-        pulses = self.deg_to_pulses(angle_deg)
+        pulses = (self.deg_to_pulses(angle_deg) if mode == "absolute"
+                  else self.deg_to_pulses_rel(angle_deg))
         pos_h, pos_l = split_32(pulses)
         # One register at a time — a 5-register block write is silently
         # truncated by this firmware.

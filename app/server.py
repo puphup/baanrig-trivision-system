@@ -423,34 +423,28 @@ async def jog_stop(req: MotorKeyRequest):
 
 @app.post("/api/home")
 async def home_motor(req: HomeRequest):
-    """Drive motor(s) to face 1 by the SHORTEST path — the nearest whole-turn
-    orientation of the taught home, not a full unwind back to absolute 0. The
-    whole array uses the show's commanded angle as the truth (all motors are
-    synchronized to it); a single-motor Home reads that motor's own angle."""
+    """Drive motor(s) to face 1 by the SHORTEST path. Each motor makes a RELATIVE
+    move onto the nearest face-1 orientation of its own displayed angle (face 1 =
+    0° after Set Zero/Set Home), so it re-aligns onto the face without depending
+    on a shared absolute origin. At most a 180° move; usually just re-squaring."""
     if sequencer.active:
         return {"error": "Sequence in progress"}
     targets = _resolve_targets(req.motor_key)
-    # Array Home: snap the show to the nearest face-1 turn and send every motor
-    # to that same angle, keeping them in lockstep for the next flip.
-    array_target = None if req.motor_key else show.snap_to_face1()
     failed = []
     for key in targets:
         d = drivers[key]
         try:
-            if array_target is not None:
-                nearest = array_target
-            else:
-                st = await d.read_status()
-                nearest = round(st.get("position_deg", 0.0) / 360.0) * 360.0
-            await d.start_move(
-                mode="absolute",
-                angle_deg=nearest,
-                speed_rpm=req.speed_rpm,
-                accel=req.accel,
-                decel=req.decel,
-            )
+            st = await d.read_status()
+            raw = int(st.get("position_pulses", 0))
+            display_deg = d.pulses_to_deg(raw - zero_offsets.get(key, 0))
+            # nearest face-1 (multiple of 360) expressed as a relative delta
+            delta = round(display_deg / 360.0) * 360.0 - display_deg
+            await d.start_move("relative", delta, req.speed_rpm, req.accel, req.decel)
         except Exception as e:
             failed.append({"motor_key": key, "error": str(e)[:80]})
+    # Homing the whole array declares it back on face 1.
+    if not req.motor_key:
+        await show.set_current_page(1)
     return {"ok": True, "total": len(targets), "done": len(targets) - len(failed), "failed": failed}
 
 

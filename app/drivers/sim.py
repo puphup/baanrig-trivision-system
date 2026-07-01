@@ -31,7 +31,10 @@ class SimDriver(MotorDriver):
 
     async def start_move(self, mode, angle_deg, speed_rpm, accel, decel):
         mode_val = MODE_ABSOLUTE if mode == "absolute" else MODE_RELATIVE
-        pulses = degrees_to_pulses(angle_deg)
+        # Relative moves carry the sub-pulse remainder (matches the real drivers)
+        # so repeated 120° flips don't drift; absolute moves are exact as-is.
+        pulses = (degrees_to_pulses(angle_deg) if mode == "absolute"
+                  else self.deg_to_pulses_rel(angle_deg))
         self.motor.start_move(mode_val, pulses, int(speed_rpm), int(accel), int(decel))
 
     async def stop_motion(self) -> None:

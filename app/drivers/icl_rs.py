@@ -116,7 +116,8 @@ class ICLRSDriver(MotorDriver):
         """Write the PR0 motion block (mode/pos/vel/accel/decel) but don't fire
         the trigger. Pair with :meth:`trigger_move` for synchronized starts."""
         mode_val = MODE_ABSOLUTE if mode == "absolute" else MODE_RELATIVE
-        pulses = self.deg_to_pulses(angle_deg)
+        pulses = (self.deg_to_pulses(angle_deg) if mode == "absolute"
+                  else self.deg_to_pulses_rel(angle_deg))
         pos_h, pos_l = split_32(pulses)
         await self.modbus.write_registers(
             self.slave_id, PR0_MODE,

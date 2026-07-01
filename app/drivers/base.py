@@ -40,6 +40,17 @@ class MotorDriver(ABC):
     def deg_to_pulses(self, deg: float) -> int:
         return int(deg * self.direction * self.command_ppr / 360.0)
 
+    def deg_to_pulses_rel(self, deg: float) -> int:
+        """Relative-move pulses, carrying the sub-pulse rounding remainder so a
+        repeated step never drifts on a drive whose ppr doesn't divide the step
+        evenly (TL-R: 120° = 333.33 pulses → plain truncation loses 0.12°/flip).
+        The carried remainder makes three 120° steps sum to exactly one rev."""
+        resid = getattr(self, "_pulse_residual", 0.0)
+        ideal = deg * self.direction * self.command_ppr / 360.0
+        pulses = round(ideal + resid)
+        self._pulse_residual = ideal + resid - pulses
+        return int(pulses)
+
     def pulses_to_deg(self, pulses: int) -> float:
         return pulses * self.direction * 360.0 / self.encoder_ppr if self.encoder_ppr else 0.0
 
