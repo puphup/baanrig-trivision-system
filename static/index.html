@@ -917,13 +917,13 @@ function bulkToast(label, r, extra) {
 
 function doEnable()   { if (selectedKey) api('enable',   { motor_key: selectedKey }); }
 function doDisable()  { if (selectedKey) api('disable',  { motor_key: selectedKey }); }
-function doHome()     { if (selectedKey) api('home',     { motor_key: selectedKey, speed_rpm: 5, accel: 200, decel: 200 }); }
+function doHome()     { if (selectedKey) api('home',     { motor_key: selectedKey, speed_rpm: 10, accel: 200, decel: 200 }); }
 function doSetZero()  { if (selectedKey) api('set-zero', { motor_key: selectedKey }); }
 function doSetHome()  { if (selectedKey) { api('set-home', { motor_key: selectedKey }); showToast(`Set Home: ${selectedKey} origin saved to drive.`, 'success'); } }
 async function doSetHomeAll() { bulkToast('Set Home All', await api('set-home', {}), '(saved to EEPROM; show reset to face 1)'); }
 function doAlarmReset(){ if (selectedKey) api('alarm-reset', { motor_key: selectedKey }); }
 function doEstop()    { api('estop'); }
-async function doHomeAll()  { bulkToast('Home All', await api('home', { speed_rpm: 5, accel: 200, decel: 200 })); }
+async function doHomeAll()  { bulkToast('Home All', await api('home', { speed_rpm: 10, accel: 200, decel: 200 })); }
 async function doZeroAll()  { bulkToast('Zero All', await api('set-zero', {})); }
 async function doSave()     { bulkToast('Save Params', await api('save', {})); }
 async function doReconnect() {

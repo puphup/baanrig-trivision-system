@@ -290,7 +290,7 @@ class MotorKeyRequest(BaseModel):
 
 class HomeRequest(BaseModel):
     motor_key: str | None = None       # None → all motors
-    speed_rpm: int = 5
+    speed_rpm: int = 10
     accel: int = 200
     decel: int = 200
 
