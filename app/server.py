@@ -425,34 +425,43 @@ async def jog_stop(req: MotorKeyRequest):
 async def home_motor(req: HomeRequest):
     if sequencer.active:
         return {"error": "Sequence in progress"}
-    for key in _resolve_targets(req.motor_key):
+    targets = _resolve_targets(req.motor_key)
+    failed = []
+    for key in targets:
         d = drivers[key]
         home_pulses = zero_offsets.get(key, 0)
-        await d.start_move(
-            mode="absolute",
-            angle_deg=d.pulses_to_deg(home_pulses),   # per-driver PPR, not global
-            speed_rpm=req.speed_rpm,
-            accel=req.accel,
-            decel=req.decel,
-        )
-    return {"ok": True}
+        try:
+            await d.start_move(
+                mode="absolute",
+                angle_deg=d.pulses_to_deg(home_pulses),   # per-driver PPR, not global
+                speed_rpm=req.speed_rpm,
+                accel=req.accel,
+                decel=req.decel,
+            )
+        except Exception as e:
+            failed.append({"motor_key": key, "error": str(e)[:80]})
+    return {"ok": True, "total": len(targets), "done": len(targets) - len(failed), "failed": failed}
 
 
 @app.post("/api/set-zero")
 async def set_zero(req: MotorKeyRequest):
     targets = _resolve_targets(req.motor_key)
+    failed = []
     for key in targets:
         d = drivers[key]
-        if key in sim_motors:
-            sim_motors[key].position = 0.0
-            zero_offsets[key] = 0
-        else:
-            st = await d.read_status()
-            zero_offsets[key] = int(st.get("position_pulses", 0))
+        try:
+            if key in sim_motors:
+                sim_motors[key].position = 0.0
+                zero_offsets[key] = 0
+            else:
+                st = await d.read_status()
+                zero_offsets[key] = int(st.get("position_pulses", 0))
+        except Exception as e:
+            failed.append({"motor_key": key, "error": str(e)[:80]})
     # If the user zero'd every motor at once, the array is now aligned to face 1.
     if not req.motor_key:
         await show.set_current_page(1)
-    return {"ok": True}
+    return {"ok": True, "total": len(targets), "done": len(targets) - len(failed), "failed": failed}
 
 
 @app.post("/api/set-home")
@@ -461,8 +470,9 @@ async def set_home(req: MotorKeyRequest):
     EEPROM (survives power cycles), unlike /api/set-zero which only stores a
     software display offset. Also clears that software offset since the drive
     now reads 0 here."""
+    targets = _resolve_targets(req.motor_key)
     failed = []
-    for key in _resolve_targets(req.motor_key):
+    for key in targets:
         d = drivers[key]
         try:
             await d.set_home()
@@ -485,7 +495,7 @@ async def set_home(req: MotorKeyRequest):
     # Set Home on the whole array → treat the new origin as face 1.
     if not req.motor_key:
         await show.set_current_page(1)
-    return {"ok": True, "failed": failed}
+    return _bulk_result(targets, failed)
 
 
 @app.post("/api/reconnect")
@@ -515,44 +525,59 @@ async def estop():
     return {"ok": True}
 
 
+def _bulk_result(targets: list, failed: list) -> dict:
+    """Standard multi-motor response so the UI can pop up 'M/N completed'."""
+    n = len(targets)
+    return {"ok": True, "total": n, "done": n - len(failed), "failed": failed}
+
+
 @app.post("/api/alarm-reset")
 async def alarm_reset(req: MotorKeyRequest):
-    for key in _resolve_targets(req.motor_key):
-        await drivers[key].alarm_reset()
-    return {"ok": True}
+    targets = _resolve_targets(req.motor_key)
+    failed = []
+    for key in targets:
+        try:
+            await drivers[key].alarm_reset()
+        except Exception as e:
+            failed.append({"motor_key": key, "error": str(e)[:80]})
+    return _bulk_result(targets, failed)
 
 
 @app.post("/api/save")
 async def save_params():
-    for d in drivers.values():
+    targets = list(drivers.keys())
+    failed = []
+    for key in targets:
         try:
-            await d.save_params()
-        except Exception:
-            pass
-    return {"ok": True}
+            await drivers[key].save_params()
+        except Exception as e:
+            failed.append({"motor_key": key, "error": str(e)[:80]})
+    return _bulk_result(targets, failed)
 
 
 @app.post("/api/enable")
 async def enable_motors(req: MotorKeyRequest = MotorKeyRequest()):
     # ponytail: per-motor try/except so a dead gateway can't 500 the whole call.
+    targets = _resolve_targets(req.motor_key)
     failed = []
-    for key in _resolve_targets(req.motor_key):
+    for key in targets:
         try:
             await drivers[key].enable()
         except Exception as e:
             failed.append({"motor_key": key, "error": str(e)[:80]})
-    return {"ok": True, "failed": failed}
+    return _bulk_result(targets, failed)
 
 
 @app.post("/api/disable")
 async def disable_motors(req: MotorKeyRequest = MotorKeyRequest()):
+    targets = _resolve_targets(req.motor_key)
     failed = []
-    for key in _resolve_targets(req.motor_key):
+    for key in targets:
         try:
             await drivers[key].disable()
         except Exception as e:
             failed.append({"motor_key": key, "error": str(e)[:80]})
-    return {"ok": True, "failed": failed}
+    return _bulk_result(targets, failed)
 
 
 # ---------------------------------------------------------------------------

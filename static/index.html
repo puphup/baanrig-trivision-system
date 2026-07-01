@@ -904,17 +904,28 @@ function doMove() {
     mode: V('mv-mode').value,
   });
 }
+// Completion popup for any multi-motor command: "✓ Zero All — completed on
+// all 50 motors" or "Zero All — 48/50 done, 2 failed".
+function bulkToast(label, r, extra) {
+  if (!r || r.total == null) { showToast(`${label} sent.`, 'success'); return; }
+  const total = r.total, done = r.done, fail = (r.failed || []).length;
+  const tail = extra ? ` ${extra}` : '';
+  if (total === 0) showToast(`${label}: no motors configured.`, 'danger');
+  else if (fail === 0) showToast(`✓ ${label} — completed on all ${total} motors.${tail}`, 'success');
+  else showToast(`${label} — ${done}/${total} done, ${fail} failed (see console).`, 'danger');
+}
+
 function doEnable()   { if (selectedKey) api('enable',   { motor_key: selectedKey }); }
 function doDisable()  { if (selectedKey) api('disable',  { motor_key: selectedKey }); }
 function doHome()     { if (selectedKey) api('home',     { motor_key: selectedKey, speed_rpm: 5, accel: 200, decel: 200 }); }
 function doSetZero()  { if (selectedKey) api('set-zero', { motor_key: selectedKey }); }
 function doSetHome()  { if (selectedKey) { api('set-home', { motor_key: selectedKey }); showToast(`Set Home: ${selectedKey} origin saved to drive.`, 'success'); } }
-function doSetHomeAll() { api('set-home', {}); showToast('Set Home All: current positions saved as drive origins (EEPROM). Show reset to face 1.', 'success'); }
+async function doSetHomeAll() { bulkToast('Set Home All', await api('set-home', {}), '(saved to EEPROM; show reset to face 1)'); }
 function doAlarmReset(){ if (selectedKey) api('alarm-reset', { motor_key: selectedKey }); }
 function doEstop()    { api('estop'); }
-function doHomeAll()  { api('home',     { speed_rpm: 5, accel: 200, decel: 200 }); }
-function doZeroAll()  { api('set-zero', {}); }
-function doSave()     { api('save'); showToast('Save command sent to all drives.', 'success'); }
+async function doHomeAll()  { bulkToast('Home All', await api('home', { speed_rpm: 5, accel: 200, decel: 200 })); }
+async function doZeroAll()  { bulkToast('Zero All', await api('set-zero', {})); }
+async function doSave()     { bulkToast('Save Params', await api('save', {})); }
 async function doReconnect() {
   const btn = V('btn-reconnect');
   btn.disabled = true; btn.textContent = 'Reconnecting…';
@@ -930,8 +941,10 @@ async function doReconnect() {
   }
   btn.disabled = false; btn.textContent = 'Reconnect';
 }
-function doToggleEnableAll() {
-  if (motorsEnabled) api('disable', {}); else api('enable', {});
+async function doToggleEnableAll() {
+  const label = motorsEnabled ? 'Disable All' : 'Enable All';
+  const r = await api(motorsEnabled ? 'disable' : 'enable', {});
+  bulkToast(label, r);
 }
 
 function doSequence() {
