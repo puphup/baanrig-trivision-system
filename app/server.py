@@ -203,6 +203,29 @@ async def run_iclrs_setup() -> int:
         await _teardown_runtime()
 
 
+async def _reconnect_loop():
+    """Reconnect down gateways OUT OF BAND, every few seconds.
+
+    The live status feed never attempts a connect (it fast-fails offline
+    gateways instantly), so reconnection has to happen here instead. A missing
+    gateway therefore costs the UI nothing — its motors just show offline until
+    this loop dials it back, while the healthy gateways keep updating at full
+    speed."""
+    while True:
+        await asyncio.sleep(3.0)
+        clients = [c for c in gateways.values()
+                   if isinstance(c, TcpModbus) and not c.connected]
+        if not clients:
+            continue
+        # Concurrent so 3 down gateways don't take 3× the connect timeout.
+        async def _try(c):
+            try:
+                await c.ensure_connected()
+            except Exception:
+                pass
+        await asyncio.gather(*(_try(c) for c in clients))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global config, gateways, drivers, sim_motors, sequencer
@@ -214,8 +237,10 @@ async def lifespan(app: FastAPI):
     sequencer = MultiMotorSequencer(drivers=drivers, motor_keys=list(drivers.keys()))
 
     broadcast_task = asyncio.create_task(_broadcast_loop())
+    reconnect_task = asyncio.create_task(_reconnect_loop())
     yield
     broadcast_task.cancel()
+    reconnect_task.cancel()
     await _teardown_runtime()
 
 
