@@ -41,7 +41,7 @@ except MapError:
     pass
 
 # config integration: map drives gateways/motors, limits allow 231
-import os, tempfile
+import tempfile
 from app import config as C
 assert (C.MAX_GATEWAYS, C.MAX_MOTORS_PER_GATEWAY, C.MAX_TOTAL_MOTORS) == (16, 32, 512)
 with tempfile.TemporaryDirectory() as td:
@@ -57,5 +57,9 @@ with tempfile.TemporaryDirectory() as td:
     saved = json.loads(cp.read_text())
     assert "motors" not in saved and "gateways" not in saved and "motor_extras" not in saved
     assert saved["use_spare"] == [2] and saved["map"].endswith("motor_map.json")
+
+# malformed hand-edited fields degrade to defaults instead of crashing
+n = C._normalize({"use_spare": ["x"], "motion": {"speed": "fast"}})
+assert n["use_spare"] == [] and n["motion"]["speed"] == 5
 
 print("ok")

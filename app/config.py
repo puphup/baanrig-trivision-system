@@ -249,9 +249,18 @@ def _normalize(cfg: dict) -> dict:
 
     # ---- map / spare / motion --------------------------------------------
     cfg["map"] = str(cfg.get("map") or DEFAULTS["map"])
-    cfg["use_spare"] = sorted({int(n) for n in (cfg.get("use_spare") or [])})
-    mo = dict(DEFAULTS["motion"]); mo.update(cfg.get("motion") or {})
-    cfg["motion"] = {k: int(mo[k]) for k in DEFAULTS["motion"]}
+    try:
+        cfg["use_spare"] = sorted({int(n) for n in (cfg.get("use_spare") or [])})
+    except (TypeError, ValueError):
+        cfg["use_spare"] = list(DEFAULTS["use_spare"])
+    mo_in = cfg.get("motion") or {}
+    motion = {}
+    for k, default_v in DEFAULTS["motion"].items():
+        try:
+            motion[k] = int(mo_in[k])
+        except (KeyError, TypeError, ValueError):
+            motion[k] = default_v
+    cfg["motion"] = motion
 
     return cfg
 
