@@ -39,4 +39,23 @@ try:
     load_map(root / "nope.json"); assert False
 except MapError:
     pass
+
+# config integration: map drives gateways/motors, limits allow 231
+import os, tempfile
+from app import config as C
+assert (C.MAX_GATEWAYS, C.MAX_MOTORS_PER_GATEWAY, C.MAX_TOTAL_MOTORS) == (16, 32, 512)
+with tempfile.TemporaryDirectory() as td:
+    cp = Path(td) / "config.json"
+    cp.write_text(json.dumps({"mode": "simulation", "map": str(root / "motor_map.json"), "use_spare": [2]}))
+    C.CONFIG_PATH = cp
+    cfg = C.load_config()
+    assert len(cfg["motors"]) == 231 and len(cfg["gateways"]) == 11
+    assert cfg["gateways"][1]["host"] == "192.168.20.104"
+    assert cfg["motor_extras"]["gw1.1"]["label"] == "M001"
+    assert cfg["motion"] == {"speed": 5, "accel": 500, "decel": 900, "step_ms": 200}
+    C.save_config(cfg)
+    saved = json.loads(cp.read_text())
+    assert "motors" not in saved and "gateways" not in saved and "motor_extras" not in saved
+    assert saved["use_spare"] == [2] and saved["map"].endswith("motor_map.json")
+
 print("ok")

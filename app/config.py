@@ -46,9 +46,9 @@ CONFIG_PATH = _config_path()
 # ---------------------------------------------------------------------------
 # Limits
 # ---------------------------------------------------------------------------
-MAX_GATEWAYS = 8
-MAX_MOTORS_PER_GATEWAY = 20      # bounded by typical RS485 fan-out
-MAX_TOTAL_MOTORS = 60            # MAX_GATEWAYS * MAX_MOTORS_PER_GATEWAY, capped
+MAX_GATEWAYS = 16
+MAX_MOTORS_PER_GATEWAY = 32      # bounded by RS485 fan-out; wall uses up to 24
+MAX_TOTAL_MOTORS = 512
 
 # Legacy alias still imported by older modules; resolves to the new total cap.
 MAX_MOTORS = MAX_TOTAL_MOTORS
@@ -65,6 +65,9 @@ ALLOWED_DRIVER_TYPES = ("icl_rs", "tl_r")
 # ---------------------------------------------------------------------------
 DEFAULTS = {
     "mode": "simulation",
+    "map": "motor_map.json",
+    "use_spare": [],
+    "motion": {"speed": 5, "accel": 500, "decel": 900, "step_ms": 200},
     "gateways": [
         {"id": "gw1", "host": "192.168.10.201", "port": 502},
     ],
@@ -244,6 +247,12 @@ def _normalize(cfg: dict) -> dict:
 
     cfg.setdefault("connection", DEFAULTS["connection"].copy())
 
+    # ---- map / spare / motion --------------------------------------------
+    cfg["map"] = str(cfg.get("map") or DEFAULTS["map"])
+    cfg["use_spare"] = sorted({int(n) for n in (cfg.get("use_spare") or [])})
+    mo = dict(DEFAULTS["motion"]); mo.update(cfg.get("motion") or {})
+    cfg["motion"] = {k: int(mo[k]) for k in DEFAULTS["motion"]}
+
     return cfg
 
 
@@ -252,6 +261,11 @@ def _bundled_default_path() -> Path | None:
     built-in default when there's no config.json next to the exe yet."""
     env = os.environ.get("PYSIM_RESOURCE_ROOT")
     return Path(env) / "config.json" if env else None
+
+
+def _map_path(cfg: dict) -> Path:
+    p = Path(cfg["map"])
+    return p if p.is_absolute() else CONFIG_PATH.parent / p
 
 
 def load_config() -> dict:
@@ -267,13 +281,22 @@ def load_config() -> dict:
                 raw = json.load(f)
         else:
             raw = {k: (v.copy() if isinstance(v, (dict, list)) else v) for k, v in DEFAULTS.items()}
-    return _normalize(raw)
+    cfg = _normalize(raw)
+    # The map is the source of gateways/motors; a missing/bad map is fatal
+    # (spec §7) — no silent fallback to an empty wall.
+    from .motor_map import load_map
+    gws, motors, extras = load_map(_map_path(cfg), cfg["use_spare"])
+    cfg["gateways"], cfg["motors"], cfg["motor_extras"] = gws, motors, extras
+    return _normalize(cfg)
+
+
+_PERSISTED = ("mode", "map", "use_spare", "motion", "motor_defaults", "server")
 
 
 def save_config(cfg: dict):
     normalized = _normalize(cfg)
     with open(CONFIG_PATH, "w") as f:
-        json.dump(normalized, f, indent=2)
+        json.dump({k: normalized[k] for k in _PERSISTED if k in normalized}, f, indent=2)
 
 
 def driver_type_for(cfg: dict, gateway_id: str, slave_id: int) -> str:
