@@ -90,11 +90,6 @@
   .field { margin-bottom: 7px; }
   .field-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 8px; }
 
-  .card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius); padding: 12px;
-  }
-
   /* =========================================================================
      CONTROL TAB
      ========================================================================= */
@@ -488,6 +483,7 @@
         <thead><tr><th>Cabinet</th><th>IP in use</th><th>Use spare IP</th><th>Motors</th><th>Online</th><th></th></tr></thead>
         <tbody id="cab-rows"></tbody>
       </table>
+      <pre id="commission-out" style="font-size:.72rem; margin-top:6px; white-space:pre-line; max-height:200px; overflow-y:auto"></pre>
     </div>
     <div class="grid-card">
       <h2 style="margin:0 0 8px">Diagnostics — selected motor <span id="diag-label" style="color:var(--text-dim)">—</span></h2>
@@ -559,7 +555,7 @@ function onStatus(data) {
   updateMap(data);
   renderCabinetStrip(data);
   updateHoming(data.homing);
-  if (V('tab-cabinets').classList.contains('active')) renderCabinets(data);
+  if (V('tab-cabinets').classList.contains('active')) updateCabinetCounts(data);
   renderFocus(data);
   renderSequenceRows(data);
   updateHeaderBadges(data);
@@ -974,23 +970,39 @@ async function toggleAuto() {
 // ============================ Cabinets tab ============================
 function renderCabinets(d) {
   if (!mapInv) return;
-  const motors = (d && d.motors) || {};
+  // ponytail: rows (checkbox/buttons) rebuild only here, on inventory change
+  // (called from loadMotors after every mapInv (re)fetch). Per-tick updates
+  // go through updateCabinetCounts() so an in-flight checkbox click / focus
+  // never gets clobbered by a status tick.
+  if (!mapInv) return;
   V('mode-select').value = mapInv.mode || 'tcp';
   V('cab-rows').innerHTML = mapInv.cabinets.map(c => {
-    const sts = c.motor_keys.map(k => motors[k] || { offline: true });
-    const online = sts.filter(s => !s.offline).length;
-    const alarm = sts.some(s => !s.offline && s.alarm);
     const usingSpare = c.active_host === c.spare && !!c.spare;
     return `<tr>
       <td>Cabinet ${c.cabinet}</td>
       <td>${c.active_host}</td>
       <td><input type="checkbox" ${usingSpare ? 'checked' : ''} ${c.spare ? '' : 'disabled'} onchange="toggleSpare(${c.cabinet}, this.checked)"> ${c.spare || '—'}</td>
       <td>${c.motor_keys.length}</td>
-      <td class="${online === 0 ? 'offline' : alarm ? 'alarm' : ''}">${online}/${c.motor_keys.length}${alarm ? ' ⚠' : ''}</td>
+      <td id="cab-online-${c.cabinet}">—</td>
       <td><button type="button" onclick="doSeekHomeCab(${c.cabinet})">Seek Home</button>
           <button type="button" class="btn-warning" onclick="doCommission(${c.cabinet})" title="Fresh drives only: DI1 off, DI3 home switch, homing 3/1 rpm, save. Power-cycle the cabinet afterwards.">Commission</button></td>
     </tr>`;
   }).join('');
+  updateCabinetCounts(d);
+}
+
+function updateCabinetCounts(d) {
+  if (!mapInv) return;
+  const motors = (d && d.motors) || {};
+  mapInv.cabinets.forEach(c => {
+    const cell = V(`cab-online-${c.cabinet}`);
+    if (!cell) return;
+    const sts = c.motor_keys.map(k => motors[k] || { offline: true });
+    const online = sts.filter(s => !s.offline).length;
+    const alarm = sts.some(s => !s.offline && s.alarm);
+    cell.textContent = `${online}/${c.motor_keys.length}${alarm ? ' ⚠' : ''}`;
+    cell.className = online === 0 ? 'offline' : alarm ? 'alarm' : '';
+  });
 }
 
 async function toggleSpare(n, checked) {
@@ -1010,8 +1022,12 @@ async function setMode(mode) {
 async function doCommission(n) {
   if (!confirm(`Commission every drive in cabinet ${n}? Only for fresh drives. You must power-cycle the cabinet afterwards.`)) return;
   const r = await api('commission', { cabinet: n });
-  const fails = (r.failed || []).map(f => `${f.motor_key}: ${f.error}`).join('\n');
-  showToast(`Cabinet ${n}: ${r.done}/${r.total} commissioned. POWER-CYCLE CABINET ${n} NOW, then press Reconnect.` + (fails ? `\nFailed:\n${fails}` : ''), r.done === r.total ? 'success' : 'error');
+  const failed = r.failed || [];
+  const lines = [`Cabinet ${n}: done ${r.done} / total ${r.total}`];
+  if (failed.length === 0) lines.push(`Power-cycle cabinet ${n} now, then press Reconnect.`);
+  else lines.push(...failed.map(f => `${f.motor_key}: ${f.error}`));
+  V('commission-out').textContent = lines.join('\n');
+  showToast(`Cabinet ${n}: ${r.done}/${r.total} commissioned.`, failed.length === 0 ? 'success' : 'error');
 }
 
 async function regRead() {
