@@ -88,36 +88,13 @@ push, and attaches it to a GitHub Release on every tag.
 See [BUILD_WINDOWS.md](BUILD_WINDOWS.md). TL;DR: install Python 3.11+, double-click
 `build_windows.bat`, find the output in `dist\Baanrig-Trivision.exe`.
 
-## Configuration reference
+## Configuration
 
-`config.json` (auto-created on first save):
+`config.json`: `mode` (tcp|simulation), `map` (motor_map.json or bench_map.json),
+`use_spare` ([cabinet numbers]), `motion` (speed/accel/decel/step_ms).
 
-```json
-{
-  "connection": {
-    "mode": "simulation",           // "simulation" | "hardware" | "tcp"
-    "serial_port": "COM3",          // RTU only
-    "baudrate": 38400,
-    "data_bits": 8,
-    "parity": "none",
-    "stop_bits": 1,
-    "tcp_host": "192.168.1.100",    // TCP only
-    "tcp_port": 502
-  },
-  "motors": {
-    "slave_ids": [1, 2, 3],         // 1..5 IDs, each 1..31
-    "command_ppr": 10000,           // Pr0.01 on the drive
-    "encoder_ppr": 65536            // encoder feedback PPR
-  },
-  "server": {
-    "host": "0.0.0.0",
-    "port": 8000
-  }
-}
-```
-
-Changing connection mode, slave IDs, baud rate, or port requires a restart
-(close console, re-launch).
+Gateways and motors are read from the map file; regenerate it with
+`./venv/bin/python gen_motor_map.py` after `Trivision_Motor_Map.md` changes.
 
 ## Modbus details
 

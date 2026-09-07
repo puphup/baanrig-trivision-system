@@ -1,9 +1,9 @@
 """FastAPI server for multi-gateway, multi-motor control.
 
-Each *gateway* is one Modbus-TCP↔RTU bridge with up to 20 motors hanging off
-its RS485 side. The server opens one :class:`TcpModbus` per gateway in
-:func:`lifespan` and builds a :class:`MotorDriver` for every configured motor,
-keyed by ``"<gateway-id>.<slave-id>"`` (e.g. ``"gw1.5"``).
+Each *gateway* is one Modbus-TCP↔RTU bridge with up to 32 motors (wall: 11 cabinets,
+231 motors from motor_map.json) hanging off its RS485 side. The server opens one
+:class:`TcpModbus` per gateway in :func:`lifespan` and builds a :class:`MotorDriver`
+for every configured motor, keyed by ``"<gateway-id>.<slave-id>"`` (e.g. ``"gw1.5"``).
 
 Endpoints take a ``motor_key`` instead of a bare slave_id so the same slave_id
 on different gateways doesn't collide.

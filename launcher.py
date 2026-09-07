@@ -64,14 +64,16 @@ def main() -> None:
              "Normally-Closed Enable to 'invalid' and persist to EEPROM "
              "so software (Pr0.07) actually controls enable. Skips the "
              "normal web-server launch. iCL-RS drives only; other "
-             "motor types in the config are untouched.",
+             "motor types in the config are untouched. "
+             "(the Cabinets tab's Commission button does both for one cabinet)",
     )
     p.add_argument(
         "--setup-iclrs-home",
         action="store_true",
         help="One-time iCL-RS commissioning: DI3 = home switch (N.O.), homing "
              "mode = home switch, saved to EEPROM. Power-cycle the drive afterwards. "
-             "Add --home-nc for a normally-closed switch, --home-cw to flip direction.",
+             "Add --home-nc for a normally-closed switch, --home-cw to flip direction. "
+             "(the Cabinets tab's Commission button does both for one cabinet)",
     )
     p.add_argument("--home-nc", action="store_true", help="home switch is normally-closed")
     p.add_argument("--home-cw", action="store_true", help="flip homing direction")
