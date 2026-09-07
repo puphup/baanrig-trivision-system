@@ -5,7 +5,7 @@ Schema (v2, multi-gateway):
     {
       "mode": "tcp" | "simulation",
       "gateways": [
-        {"id": "gw1", "host": "192.168.10.201", "port": 502},
+        {"id": "gw1", "host": "192.168.20.101", "port": 502},
         ...
       ],
       "motors": [
@@ -68,13 +68,7 @@ DEFAULTS = {
     "map": "motor_map.json",
     "use_spare": [],
     "motion": {"speed": 5, "accel": 500, "decel": 900, "step_ms": 200},
-    "gateways": [
-        {"id": "gw1", "host": "192.168.10.201", "port": 502},
-    ],
-    "motors": [
-        {"gateway": "gw1", "slave_id": 1, "driver_type": "icl_rs"},
-        {"gateway": "gw1", "slave_id": 2, "driver_type": "icl_rs"},
-    ],
+    # No gateways/motors here on purpose: load_map() is the only source of both.
     "motor_defaults": {"command_ppr": 4000, "encoder_ppr": 4000},
     "server": {"host": "0.0.0.0", "port": 8000},
     "connection": {
@@ -129,7 +123,7 @@ def _validate_motor(m: dict, known_gw_ids: set[str]) -> dict | None:
         return None
     if gw not in known_gw_ids:
         return None
-    if not (1 <= sid <= 31):
+    if not (1 <= sid <= MAX_MOTORS_PER_GATEWAY):
         return None
     drv = str(m.get("driver_type", DEFAULT_DRIVER_TYPE)).lower()
     if drv not in ALLOWED_DRIVER_TYPES:
@@ -138,7 +132,8 @@ def _validate_motor(m: dict, known_gw_ids: set[str]) -> dict | None:
 
 
 def _normalize(cfg: dict) -> dict:
-    """Normalize raw JSON into the v2 shape, migrating v1 if present."""
+    """Normalize raw JSON into the v2 shape. Gateways/motors are validated but
+    never invented here — load_config() gets them from the map file."""
     # ---- mode ---------------------------------------------------------------
     mode = str(cfg.get("mode", DEFAULTS["mode"])).lower()
     # v1 had `connection.mode` ∈ {simulation, hardware, tcp}. Map.
@@ -153,22 +148,15 @@ def _normalize(cfg: dict) -> dict:
     cfg["mode"] = mode
 
     # ---- gateways -----------------------------------------------------------
+    # Empty until load_config() fills them in from the map — _normalize runs
+    # once before the map is read and once after.
     raw_gws = cfg.get("gateways")
     gateways: list[dict] = []
-    if isinstance(raw_gws, list) and raw_gws:
+    if isinstance(raw_gws, list):
         for gw in raw_gws[:MAX_GATEWAYS]:
             v = _validate_gateway(gw)
             if v:
                 gateways.append(v)
-    else:
-        # Migrate from v1: single TCP gateway derived from connection.tcp_host
-        conn = cfg.get("connection", {}) or {}
-        host = conn.get("tcp_host") or conn.get("host") or "192.168.10.201"
-        try:
-            port = int(conn.get("tcp_port", 502))
-        except (TypeError, ValueError):
-            port = 502
-        gateways.append({"id": "gw1", "host": str(host), "port": port})
 
     # Dedupe gateway ids (first wins) and reassign sequential ones if needed.
     seen_ids = set()
@@ -184,30 +172,11 @@ def _normalize(cfg: dict) -> dict:
     # ---- motors -------------------------------------------------------------
     raw_motors = cfg.get("motors")
     motors: list[dict] = []
-
-    if isinstance(raw_motors, list) and raw_motors and isinstance(raw_motors[0], dict) and "gateway" in raw_motors[0]:
-        # Already v2 shape.
+    if isinstance(raw_motors, list):
         for m in raw_motors:
             v = _validate_motor(m, known_gw_ids)
             if v:
                 motors.append(v)
-    else:
-        # Migrate v1: motors.slave_ids + motors.driver_types are flat.
-        legacy_motors = cfg.get("motors", {}) if isinstance(cfg.get("motors"), dict) else {}
-        slave_ids = legacy_motors.get("slave_ids") or []
-        drv_map = legacy_motors.get("driver_types") or {}
-        first_gw = cleaned_gws[0]["id"] if cleaned_gws else "gw1"
-        for sid in slave_ids:
-            try:
-                sid_int = int(sid)
-            except (TypeError, ValueError):
-                continue
-            if not (1 <= sid_int <= 31):
-                continue
-            drv = drv_map.get(str(sid_int), DEFAULT_DRIVER_TYPE)
-            if drv not in ALLOWED_DRIVER_TYPES:
-                drv = DEFAULT_DRIVER_TYPE
-            motors.append({"gateway": first_gw, "slave_id": sid_int, "driver_type": drv})
 
     # Cap per-gateway and overall, dedupe within a gateway.
     per_gw_count: dict[str, int] = {}
@@ -228,11 +197,6 @@ def _normalize(cfg: dict) -> dict:
 
     # ---- defaults / server / legacy connection ------------------------------
     md = cfg.get("motor_defaults") or {}
-    # v1 placed these inside motors{}; carry across.
-    legacy_motors = cfg.get("motors") if isinstance(cfg.get("motors"), dict) else None
-    if isinstance(legacy_motors, dict):
-        md.setdefault("command_ppr", legacy_motors.get("command_ppr"))
-        md.setdefault("encoder_ppr", legacy_motors.get("encoder_ppr"))
     md["command_ppr"] = int(md.get("command_ppr") or DEFAULTS["motor_defaults"]["command_ppr"])
     md["encoder_ppr"] = int(md.get("encoder_ppr") or DEFAULTS["motor_defaults"]["encoder_ppr"])
     cfg["motor_defaults"] = md
@@ -282,8 +246,8 @@ def load_config() -> dict:
         with open(CONFIG_PATH) as f:
             raw = json.load(f)
     else:
-        # No local config next to the exe → seed from the bundled default
-        # (the 50-motor / 3-gateway setup), falling back to DEFAULTS.
+        # No local config next to the exe → seed from the bundled default,
+        # falling back to DEFAULTS.
         bundled = _bundled_default_path()
         if bundled and bundled.exists() and bundled != CONFIG_PATH:
             with open(bundled) as f:

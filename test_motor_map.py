@@ -43,6 +43,20 @@ except MapError:
 # config integration: map drives gateways/motors, limits allow 231
 import tempfile
 from app import config as C
+
+# an over-stuffed cabinet is fatal, not silently trimmed to 32 by _normalize
+with tempfile.TemporaryDirectory() as td:
+    p = Path(td) / "too_big.json"
+    p.write_text(json.dumps({
+        "cabinets": [{"cabinet": 1, "host": "192.168.20.101", "spare": "", "port": 502}],
+        "motors": [{"motor": i, "cabinet": 1, "slave_id": i, "x": 0.0, "y": 0.0, "apex_deg": 0.0}
+                   for i in range(1, 34)],
+    }))
+    try:
+        load_map(p); assert False, "33-motor cabinet should raise"
+    except MapError as e:
+        assert "more than 32 motors" in str(e), e
+
 assert (C.MAX_GATEWAYS, C.MAX_MOTORS_PER_GATEWAY, C.MAX_TOTAL_MOTORS) == (16, 32, 512)
 with tempfile.TemporaryDirectory() as td:
     cp = Path(td) / "config.json"
