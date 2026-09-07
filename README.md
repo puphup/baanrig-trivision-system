@@ -1,10 +1,13 @@
 # Baanrig Trivision System
 
-Multi-gateway controller for a **Trivision / triangular-prism advertising display** —
-each motor turns a 3-faced prism, and the app flips the whole array between faces with
-synchronized starts and selectable transition effects. Drives **Leadshine iCL-RS** and
-**TL-R** motors across multiple **Modbus-TCP→RTU gateways** (up to ~50 motors), with a
-built-in simulation mode for hardware-free testing.
+Controller for a **Trivision wall**: **231 Leadshine iCL-RS motors in 11 cabinets**,
+each turning a 3-faced prism. The app flips the whole wall between faces with
+synchronized starts and selectable transition effects.
+
+Every cabinet is a Modbus-TCP→RTU gateway on its own IP —
+**cabinet *n* = `192.168.20.(99 + 2n)`** (cabinet 1 = `.101`, cabinet 11 = `.121`),
+with a spare gateway at **+1** (`.102`, … `.122`) that can be switched in per cabinet.
+A simulation mode drives the same UI with no hardware attached.
 
 Runs as a single double-clickable Windows `.exe` (no Python, no installer, no internet
 needed) or directly from source on macOS / Linux / Windows.
@@ -19,35 +22,45 @@ To run: copy the `.exe` to any folder on a Windows 10/11 PC and double-click. A
 console window appears with logs, and your default browser opens to
 `http://127.0.0.1:8000/`. Close the console to stop the app.
 
-## Features
+## The UI
 
-- **Up to 5 motors** — configurable slave IDs (DIP-switch addresses) from the UI.
-- **Live status** — position (degrees), velocity (rpm), enable / running / alarm
-  flags pushed over WebSocket at 4–10 Hz.
-- **Manual move** — absolute or relative angular moves with configurable speed,
-  acceleration and deceleration.
-- **Jog (hold-to-move)** — press-and-hold reverse / forward buttons with an inline
-  jog-speed input. Releases cleanly without latching an e-stop.
-- **Multi-motor sequence** — trigger motors one after another with a configurable
-  delay between triggers and an include / exclude checkbox per motor.
-- **System commands** — software enable / disable, per-motor Home and Set-Zero,
-  per-motor alarm reset, persistent-parameter save, emergency stop (Esc key).
-- **Connection tab** — switch between simulation, Modbus RTU (RS485) and Modbus
-  TCP at runtime, scan serial ports, edit motor IDs, change pulse-per-revolution
-  settings, and test connectivity before applying.
+**Control tab**
 
-## Quick start (Windows, end user)
+- **Wall map** — all 231 prisms drawn at their real positions and apex angles.
+  Colour = current face; grey = offline; amber = alarm. Click one to select it.
+- **Cabinet strip** — one button per cabinet showing `online/total`; click to
+  highlight that cabinet's motors on the map.
+- **Show controls** — Next / Previous / go-to-face, transition effect, speed,
+  accel/decel and step timing, plus an auto-cycle with a hold time.
+- **Seek Home All** — drive-level DI3 home-switch homing across the whole wall;
+  cabinets run in parallel, motors within a cabinet are staggered. Progress shows
+  in the header.
+- **Selected motor** — position, status and alarm, manual absolute/relative moves,
+  jog, enable/disable, Home, Set Zero, Set Home, alarm reset.
 
-1. Download `Baanrig-Trivision.exe` (link above).
-2. Plug your USB ↔ RS485 adapter in (for RTU) or note the drive's IP (for TCP).
-3. Double-click the exe.
-4. In the **Connection** tab, pick the right mode + port / host, list the motor
-   IDs, click **Save & Apply**, then close the console window and re-launch so
-   the new settings take effect.
-5. Use the **Control** tab to enable motors, jog them, run sequences, etc.
+**Cabinets tab**
 
-`config.json` (created next to the exe on first save) is plain JSON and editable
-by hand if you prefer.
+- Per-cabinet row: active IP, a **spare-IP** checkbox, motor count, online count.
+- **Seek Home** for one cabinet.
+- **Commission** for one cabinet — fresh-drive setup (DI1 → software enable,
+  DI3 = home switch, homing speeds, EEPROM save). Power-cycle the cabinet after.
+- **Register diagnostics** — raw holding-register read/write against the selected
+  motor for bench checks.
+
+Live status (position, face, running / enabled / alarm) is pushed to the browser
+over a WebSocket; a background poller per cabinet keeps the bus load flat.
+
+## Quick start
+
+1. Edit `config.json`: `mode` (`tcp` for the wall, `simulation` to try it dry) and
+   `map` (`motor_map.json` for the wall, `bench_map.json` for a single bench motor).
+2. Start it:
+   - Windows end user: double-click `Baanrig-Trivision.exe`.
+   - From source: `./venv/bin/python launcher.py` (add `--setup-iclrs-enable` or
+     `--setup-iclrs-home` for one-time drive commissioning from the CLI instead of
+     starting the server; `run.py` is the auto-reload dev server).
+3. Open <http://localhost:8000/> — the browser opens by itself when using
+   `launcher.py` or the `.exe`.
 
 ## Running from source
 
@@ -63,8 +76,6 @@ python run.py                     # dev server with auto-reload
 # or:
 python launcher.py                # same flow the .exe uses (auto-opens browser)
 ```
-
-Open http://localhost:8000/.
 
 ## Building the Windows .exe yourself
 
@@ -107,8 +118,13 @@ PR0 register layout.
 ## Project layout
 
 ```
-app/                    FastAPI server, sequencer, simulator, Modbus interface
+app/                    FastAPI server, show controller, sequencer, simulator,
+                        Modbus interface, per-family motor drivers
 static/index.html       Single-file dark-themed web UI
+motor_map.json          The wall: 11 cabinets + 231 motors (source of truth)
+gen_motor_map.py        Regenerates motor_map.json from Trivision_Motor_Map.md
+Trivision_Motor_Map.md  Hand-maintained wall layout (positions, apex angles, IDs)
+bench_map.json          One-motor map for a USB-RS485 bench drive
 launcher.py             PyInstaller entry point (opens browser + starts uvicorn)
 run.py                  Dev-mode entry point (uvicorn --reload)
 Pysim.spec              PyInstaller build descriptor
