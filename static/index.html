@@ -328,6 +328,31 @@
   ::-webkit-scrollbar-track { background: var(--surface); }
   ::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 4px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--border); }
+
+  /* ---- wall map ---- */
+  .map-wrap { width:100%; overflow:hidden; background:var(--bg); border-radius:8px; }
+  #wall-map { width:100%; height:auto; display:block; }
+  .prism polygon { fill:#555; stroke:#888; stroke-width:2.5; cursor:pointer; transition:fill .15s; }
+  .prism[data-face="1"] polygon { fill:#3b82f6; }
+  .prism[data-face="2"] polygon { fill:#22c55e; }
+  .prism[data-face="3"] polygon { fill:#f59e0b; }
+  .prism.offline polygon { fill:#333; stroke:#666; }
+  .prism.moving polygon { stroke:#fbbf24; stroke-width:4; }
+  .prism.alarm polygon { stroke:#ef4444; stroke-width:4; }
+  .prism.selected polygon { stroke:#fff; stroke-width:5; }
+  .prism.dim polygon { opacity:.25; }
+  .prism text { font-size:11px; fill:#ddd; text-anchor:middle; pointer-events:none; }
+  .legend { font-size:.68rem; color:var(--text-dim); display:flex; gap:8px; align-items:center; }
+  .legend .sw { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:3px; }
+  .legend .f1 { background:#3b82f6 } .legend .f2 { background:#22c55e } .legend .f3 { background:#f59e0b }
+  .legend .off { background:#333; border:1px solid #666 } .legend .alarm { border:2px solid #ef4444 } .legend .mov { border:2px solid #fbbf24 }
+  .cab-strip { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .cab-btn { font-size:.72rem; padding:4px 8px; border-radius:6px; border:1px solid var(--border); background:var(--surface); cursor:pointer; }
+  .cab-btn.active { outline:2px solid #fff; }
+  .cab-btn.offline { color:#888; }
+  .cab-btn.alarm { border-color:#ef4444; color:#ef4444; }
+  .map-row { display:grid; grid-template-columns: 1fr; gap:12px; }
+  @media (min-width: 1400px) { .map-row { grid-template-columns: 1fr 360px; } .map-row > .grid-card { order:-1; } }
 </style>
 </head>
 <body>
@@ -355,14 +380,14 @@
 
     <!-- Toolbar with global actions -->
     <div class="toolbar">
-      <button type="button" class="btn-danger btn-lg" onclick="doEstop()">EMERGENCY STOP</button>
+      <button type="button" class="btn-danger btn-lg" onclick="doEstop()">STOP ALL</button>
       <button type="button" id="btn-enable-all" class="btn-primary" onclick="doToggleEnableAll()">Enable All</button>
-      <button type="button" onclick="doHomeAll()">Home All</button>
-      <button type="button" onclick="doZeroAll()" title="Software display offset only (not saved to drives)">Zero All</button>
-      <button type="button" onclick="doSetHomeAll()" title="Make current position the drive origin, saved to EEPROM (survives power-cycle). Resets show to face 1.">Set Home All</button>
+      <button type="button" onclick="doSeekHomeAll()" title="Run the DI3 home-switch homing on every motor (cabinets in parallel). Show resets to face 1 when done.">Seek Home All</button>
+      <button type="button" onclick="doSetHomeAll()" title="Make current position the drive origin, saved to EEPROM. Resets show to face 1.">Set Home All</button>
       <button type="button" onclick="doSave()">Save Params</button>
-      <button type="button" id="btn-reconnect" onclick="doReconnect()" title="Rebuild the gateway connections and the live status link. Use if motors show offline after a gateway/PC disconnect.">Reconnect</button>
+      <button type="button" id="btn-reconnect" onclick="doReconnect()" title="Rebuild gateway connections and the live status link.">Reconnect</button>
       <span class="spacer"></span>
+      <span class="counter" id="homing-count" hidden></span>
       <span class="counter" id="online-count">0/0 online</span>
     </div>
 
@@ -426,6 +451,7 @@
       </div>
     </div>
 
+    <div class="map-row">
     <!-- Focus panel for the currently selected motor — always visible -->
     <div id="focus-panel" class="focus-panel">
       <div class="focus-header">
@@ -493,18 +519,19 @@
       </div>
     </div>
 
-    <!-- Motor grid -->
+    <!-- Wall map -->
     <div class="grid-card">
       <div class="grid-toolbar">
-        <h2 style="margin:0">Motors</h2>
-        <input type="search" id="motor-search" placeholder="Filter… e.g. gw1 / M03" oninput="renderMotorGrid(lastData)">
+        <h2 style="margin:0">Wall</h2>
+        <span class="legend"><i class="sw f1"></i>Face 1 <i class="sw f2"></i>Face 2 <i class="sw f3"></i>Face 3 <i class="sw off"></i>Offline <i class="sw alarm"></i>Alarm <i class="sw mov"></i>Moving</span>
         <span class="spacer"></span>
-        <span class="counter" id="grid-count">0 visible</span>
+        <span class="counter" id="grid-count">0 motors</span>
       </div>
-      <div class="motor-grid" id="motor-grid"></div>
-      <div id="motor-grid-empty" style="text-align:center; padding:24px; color:var(--text-dim); font-size:0.78rem;" hidden>
-        No motors configured. Open the <b>Setup</b> tab to add gateways and motors.
+      <div class="map-wrap">
+        <svg id="wall-map" viewBox="250 600 2850 1120" preserveAspectRatio="xMidYMid meet"></svg>
       </div>
+      <div class="cab-strip" id="cab-strip"></div>
+    </div>
     </div>
 
     <!-- Sequence — collapsed by default -->
@@ -666,8 +693,10 @@ setInterval(() => {
 // ============================ Status / Render ============================
 function onStatus(data) {
   lastData = data;
-  // First-time render of grid when inventory changes
-  renderMotorGrid(data);
+  if (!mapInv) loadMotors();
+  updateMap(data);
+  renderCabinetStrip(data);
+  updateHoming(data.homing);
   renderFocus(data);
   renderSequenceRows(data);
   updateHeaderBadges(data);
@@ -724,74 +753,80 @@ function updateEnableAllButton(d) {
   btn.className = anyEnabled ? 'btn-ghost' : 'btn-primary';
 }
 
-// ponytail: rebuild DOM only when the inventory (or filter) changes; on every
-// other tick patch values in place — otherwise the 4 Hz WS feed kills hover and
-// eats clicks.
-function renderMotorGrid(d) {
-  const grid = V('motor-grid');
-  const inv = d.inventory || [];
-  const filter = (V('motor-search').value || '').toLowerCase().trim();
-  const filtered = filter
-    ? inv.filter(it => it.label.toLowerCase().includes(filter) || it.motor_key.toLowerCase().includes(filter) || it.driver_type.toLowerCase().includes(filter))
-    : inv;
-  V('motor-grid-empty').hidden = inv.length > 0;
-  V('grid-count').textContent = `${filtered.length} visible`;
+let mapInv = null;           // GET /api/motors
+let highlightCab = null;
 
-  // Build the tile skeleton if filter/inventory shape changed
-  const sig = filter + '|' + filtered.map(it => it.motor_key).join(',');
-  if (grid.dataset.sig !== sig) {
-    grid.dataset.sig = sig;
-    grid.innerHTML = filtered.map(it => `
-      <div class="tile" data-key="${it.motor_key}" data-gw="${it.gateway}" onclick="selectMotor('${it.motor_key}')" title="${it.motor_key}">
-        <div class="t-head">
-          <span class="t-name">${it.label}</span>
-          <span class="t-type">${it.driver_type}</span>
-        </div>
-        <div class="t-pos" data-role="pos">—</div>
-        <div class="t-vel" data-role="vel"></div>
-        <div class="t-foot">
-          <span class="face-badge" data-role="face" title="">F?</span>
-          <div class="t-dots">
-            <span class="dot" data-role="en"    title="enabled"></span>
-            <span class="dot" data-role="run"   title="running"></span>
-            <span class="dot" data-role="alarm" title="alarm"></span>
-          </div>
-        </div>
-      </div>
-    `).join('');
+async function loadMotors() {
+  mapInv = await get('motors');
+  renderMap();
+  const mo = mapInv.motion || {};
+  if (mo.speed) V('show-speed').value = mo.speed;
+  if (mo.accel != null) V('show-accel').value = mo.accel;
+  if (mo.decel != null) V('show-decel').value = mo.decel;
+  if (mo.step_ms != null) V('show-step').value = mo.step_ms;
+  if (typeof renderCabinets === 'function') renderCabinets(lastData);
+}
+
+function renderMap() {
+  const svg = V('wall-map');
+  const ms = (mapInv && mapInv.motors) || [];
+  svg.innerHTML = ms.filter(m => m.x != null).map(m => `
+    <g class="prism" data-key="${m.motor_key}" data-cab="${m.cabinet}" data-face="0"
+       transform="translate(${m.x} ${m.y}) rotate(${(m.apex_deg || 0) + 90})"
+       onclick="selectMotor('${m.motor_key}')">
+      <polygon points="0,-16 14,10 -14,10" ${m.estimated ? 'stroke-dasharray="5 4"' : ''}></polygon>
+      <title>${m.label} · Cab ${m.cabinet} · ID ${m.slave_id}</title>
+    </g>`).join('');
+  V('grid-count').textContent = `${ms.length} motors`;
+}
+
+function updateMap(d) {
+  const motors = d.motors || {};
+  for (const g of $$('.prism')) {
+    const st = motors[g.dataset.key] || {};
+    g.dataset.face = st.current_face || 0;
+    g.classList.toggle('offline', !!st.offline);
+    g.classList.toggle('alarm', !st.offline && !!st.alarm);
+    g.classList.toggle('moving', !st.offline && !!st.running);
+    g.classList.toggle('selected', g.dataset.key === selectedKey);
+    g.classList.toggle('dim', highlightCab != null && String(highlightCab) !== g.dataset.cab);
+    const t = g.querySelector('title');
+    const base = t.textContent.split(' · ').slice(0, 3).join(' · ');
+    t.textContent = st.offline ? `${base} · offline` : `${base} · ${(st.position_deg ?? 0).toFixed(1)}° · face ${st.current_face ?? '?'}`;
   }
+}
 
-  // Patch each tile's mutable bits
-  const targetPage = (d.show && d.show.current_page) || null;
-  for (const it of filtered) {
-    const tile = grid.querySelector(`.tile[data-key="${it.motor_key}"]`);
-    if (!tile) continue;
-    const m = d.motors[it.motor_key] || {};
-    tile.classList.toggle('offline',     !!m.offline);
-    tile.classList.toggle('selected',    it.motor_key === selectedKey);
-    const face = m.current_face;
-    tile.classList.toggle('face-target', !!(targetPage && face && face === targetPage));
+function renderCabinetStrip(d) {
+  if (!mapInv) return;
+  const motors = d.motors || {};
+  V('cab-strip').innerHTML = mapInv.cabinets.map(c => {
+    const sts = c.motor_keys.map(k => motors[k] || { offline: true });
+    const online = sts.filter(s => !s.offline).length;
+    const alarm = sts.some(s => !s.offline && s.alarm);
+    const cls = ['cab-btn', online === 0 ? 'offline' : '', alarm ? 'alarm' : '', highlightCab === c.cabinet ? 'active' : ''].join(' ');
+    return `<button type="button" class="${cls}" onclick="toggleCabinetHighlight(${c.cabinet})" title="${c.active_host}">Cab ${c.cabinet} · ${online}/${c.motor_keys.length}</button>`;
+  }).join('');
+}
 
-    tile.querySelector('[data-role="pos"]').textContent =
-      (m.position_deg != null) ? `${m.position_deg.toFixed(1)}°` : '—';
-    tile.querySelector('[data-role="vel"]').textContent =
-      (m.velocity_rpm != null) ? `${m.velocity_rpm} rpm` : '';
+function toggleCabinetHighlight(n) {
+  highlightCab = (highlightCab === n) ? null : n;
+  updateMap(lastData); renderCabinetStrip(lastData);
+}
 
-    const faceEl = tile.querySelector('[data-role="face"]');
-    faceEl.textContent = face ? `F${face}` : 'F?';
-    faceEl.className = 'face-badge' + (face ? ` f${face}` : '');
-    faceEl.title = face ? `Currently displaying face ${face}` : 'Face unknown';
+function updateHoming(h) {
+  const el = V('homing-count');
+  if (!h || !h.active) { el.hidden = true; return; }
+  el.hidden = false;
+  el.textContent = `homing ${h.done}/${h.total}` + (h.failed.length ? ` (${h.failed.length} failed)` : '');
+}
 
-    tile.querySelector('[data-role="en"]'   ).className = 'dot' + (m.enabled ? ' on'    : '');
-    tile.querySelector('[data-role="run"]'  ).className = 'dot' + (m.running ? ' run'   : '');
-    tile.querySelector('[data-role="alarm"]').className = 'dot' + (m.alarm   ? ' alarm' : '');
-  }
-
-  if (inv.length && !selectedKey) {
-    selectMotor(inv[0].motor_key);
-  } else if (selectedKey && !inv.find(it => it.motor_key === selectedKey)) {
-    selectedKey = inv.length ? inv[0].motor_key : null;
-  }
+async function doSeekHomeAll() {
+  const r = await api('seek-home', {});
+  if (r.error) showToast(r.error, 'error'); else showToast(`Seek Home All: ${r.total} motors homing…`, 'success');
+}
+async function doSeekHomeCab(n) {
+  const r = await api('seek-home', { cabinet: n });
+  if (r.error) showToast(r.error, 'error'); else showToast(`Cabinet ${n}: ${r.total} motors homing…`, 'success');
 }
 
 // Selected-motor panel show/hide, persisted across refreshes.
@@ -809,7 +844,7 @@ function toggleFocusPanel() {
 function selectMotor(key) {
   const isUserClick = (typeof event !== 'undefined' && event && event.isTrusted);
   selectedKey = key;
-  $$('.tile').forEach(t => t.classList.toggle('selected', t.dataset.key === key));
+  updateMap(lastData);
   renderFocus(lastData);
   // Pull the focus panel into view if the user clicked a tile far below it.
   // Don't scroll on the silent first-load auto-selection. Skip when collapsed.
@@ -925,8 +960,6 @@ function doSetHome()  { if (selectedKey) { api('set-home', { motor_key: selected
 async function doSetHomeAll() { bulkToast('Set Home All', await api('set-home', {}), '(saved to EEPROM; show reset to face 1)'); }
 function doAlarmReset(){ if (selectedKey) api('alarm-reset', { motor_key: selectedKey }); }
 function doEstop()    { api('estop'); }
-async function doHomeAll()  { bulkToast('Home All', await api('home', { speed_rpm: 10, accel: 200, decel: 200 })); }
-async function doZeroAll()  { bulkToast('Zero All', await api('set-zero', {})); }
 async function doSave()     { bulkToast('Save Params', await api('save', {})); }
 async function doReconnect() {
   const btn = V('btn-reconnect');
@@ -1295,6 +1328,7 @@ function showToast(msg, type) {
 // ============================ Init ============================
 loadSetup();
 loadShowEffects();
+loadMotors();
 applyFocusCollapsed();
 </script>
 </body>
