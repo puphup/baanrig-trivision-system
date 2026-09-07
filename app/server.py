@@ -48,6 +48,9 @@ show: ShowController = ShowController()
 ws_clients: set[WebSocket] = set()
 # Software zero offsets per motor key (encoder pulses)
 zero_offsets: dict[str, int] = {}
+# Latest raw status per motor key, written by the per-cabinet pollers.
+status_cache: dict[str, dict] = {}
+_poll_tasks: list[asyncio.Task] = []
 
 
 def _motor_specs() -> list[dict]:
@@ -59,7 +62,11 @@ def _motor_keys() -> list[str]:
 
 
 def _label_for(key: str) -> str:
-    """Pretty label for a motor key — derived from gateway id + slave_id."""
+    """Pretty label for a motor key — prefers the motor-map label, falling
+    back to one derived from gateway id + slave_id."""
+    ex = config.get("motor_extras", {}).get(key)
+    if ex:
+        return ex["label"]
     if "." not in key:
         return key
     gw, sid = key.rsplit(".", 1)
@@ -164,12 +171,14 @@ async def _reload_runtime():
             sequencer.cancel()
         # Cancel any running auto-cycle; its drivers map is about to be replaced.
         await show.stop_auto()
+        _stop_pollers()
         await _teardown_runtime()
         new_g, new_d, new_s = await _build_runtime(config)
         gateways = new_g
         drivers = new_d
         sim_motors = new_s
         sequencer = MultiMotorSequencer(drivers=drivers, motor_keys=list(drivers.keys()))
+        _start_pollers()
         # Fresh array → face 1 by convention.
         await show.set_current_page(1)
 
@@ -233,6 +242,39 @@ async def _reconnect_loop():
         await asyncio.gather(*(_try(c) for c in clients))
 
 
+async def _poll_cabinet(keys: list[str]) -> None:
+    """Continuously read every motor on one bus into status_cache. Buses run in
+    their own task so a slow/offline cabinet never delays the others."""
+    interval = 0.1 if config.get("mode") != "tcp" else 0.0
+    while True:
+        for key in keys:
+            d = drivers.get(key)
+            if d is None:
+                continue
+            try:
+                st = await d.read_status_fast()
+            except Exception:
+                st = dict(_OFFLINE_ST)
+            status_cache[key] = st
+            await asyncio.sleep(0)
+        await asyncio.sleep(interval)
+
+
+def _start_pollers() -> None:
+    _stop_pollers()
+    by_gw: dict[str, list[str]] = {}
+    for key in drivers:
+        by_gw.setdefault(key.rsplit(".", 1)[0], []).append(key)
+    _poll_tasks.extend(asyncio.create_task(_poll_cabinet(keys)) for keys in by_gw.values())
+
+
+def _stop_pollers() -> None:
+    for t in _poll_tasks:
+        t.cancel()
+    _poll_tasks.clear()
+    status_cache.clear()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global config, gateways, drivers, sim_motors, sequencer
@@ -242,12 +284,14 @@ async def lifespan(app: FastAPI):
     drivers = new_d
     sim_motors = new_s
     sequencer = MultiMotorSequencer(drivers=drivers, motor_keys=list(drivers.keys()))
+    _start_pollers()
 
     broadcast_task = asyncio.create_task(_broadcast_loop())
     reconnect_task = asyncio.create_task(_reconnect_loop())
     yield
     broadcast_task.cancel()
     reconnect_task.cancel()
+    _stop_pollers()
     await _teardown_runtime()
 
 
@@ -884,15 +928,14 @@ _OFFLINE_ST = {
 
 
 async def _read_one_status(key: str) -> dict:
-    """Read + post-process one motor. Returns an offline dict on any failure so
-    a single dead drive can't break the whole status build."""
+    """Cache lookup + post-processing (zero offset, degrees, face). Stays
+    ``async def`` so callers (and _build_status's gather) don't need to
+    change even though the poller already did the actual I/O."""
     d = drivers.get(key)
-    if d is None:
+    st = status_cache.get(key)
+    if d is None or st is None:
         return dict(_OFFLINE_ST)
-    try:
-        st = await d.read_status()
-    except Exception:
-        return dict(_OFFLINE_ST)
+    st = dict(st)
     if not st.get("offline"):
         raw_pulses = int(st.get("position_pulses", 0))
         display_pulses = raw_pulses - zero_offsets.get(key, 0)
@@ -901,24 +944,29 @@ async def _read_one_status(key: str) -> dict:
         st["current_face"] = face_for_position(st["position_deg"])
     else:
         st["current_face"] = None
-    return dict(st)
+    return st
 
 
 async def _build_status() -> dict:
-    """Read live status for every driver and emit a flat motor-keyed dict.
-
-    Reads run CONCURRENTLY — same-gateway reads still serialize on that
-    gateway's modbus lock, but the gateways overlap, so 50 motors across 3
-    gateways take ~1/3 the wall-clock of a sequential loop. (Sequential was
-    ~2.4s and choked the WS broadcast / keepalive.)"""
+    """Emit a flat motor-keyed dict from status_cache (no I/O here — the
+    per-cabinet pollers keep the cache warm in the background, so this no
+    longer blocks the WS broadcast / keepalive on live modbus reads)."""
     specs = _motor_specs()
-    inventory = [{
-        "motor_key": build_motor_key(s["gateway"], s["slave_id"]),
-        "label": motor_label(s["gateway"], s["slave_id"]),
-        "gateway": s["gateway"],
-        "slave_id": int(s["slave_id"]),
-        "driver_type": s["driver_type"],
-    } for s in specs]
+    extras = config.get("motor_extras", {})
+    inventory = []
+    for s in specs:
+        key = build_motor_key(s["gateway"], s["slave_id"])
+        ex = extras.get(key, {})
+        inventory.append({
+            "motor_key": key,
+            "label": ex.get("label") or motor_label(s["gateway"], s["slave_id"]),
+            "gateway": s["gateway"],
+            "slave_id": int(s["slave_id"]),
+            "driver_type": s["driver_type"],
+            "motor": ex.get("motor"), "cabinet": ex.get("cabinet"),
+            "x": ex.get("x"), "y": ex.get("y"), "apex_deg": ex.get("apex_deg"),
+            "estimated": ex.get("estimated", False),
+        })
 
     keys = [it["motor_key"] for it in inventory]
     results = await asyncio.gather(*(_read_one_status(k) for k in keys))
