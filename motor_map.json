@@ -1,0 +1,2151 @@
+{
+ "cabinets": [
+  {
+   "cabinet": 1,
+   "host": "192.168.20.101",
+   "spare": "192.168.20.102",
+   "port": 502
+  },
+  {
+   "cabinet": 2,
+   "host": "192.168.20.103",
+   "spare": "192.168.20.104",
+   "port": 502
+  },
+  {
+   "cabinet": 3,
+   "host": "192.168.20.105",
+   "spare": "192.168.20.106",
+   "port": 502
+  },
+  {
+   "cabinet": 4,
+   "host": "192.168.20.107",
+   "spare": "192.168.20.108",
+   "port": 502
+  },
+  {
+   "cabinet": 5,
+   "host": "192.168.20.109",
+   "spare": "192.168.20.110",
+   "port": 502
+  },
+  {
+   "cabinet": 6,
+   "host": "192.168.20.111",
+   "spare": "192.168.20.112",
+   "port": 502
+  },
+  {
+   "cabinet": 7,
+   "host": "192.168.20.113",
+   "spare": "192.168.20.114",
+   "port": 502
+  },
+  {
+   "cabinet": 8,
+   "host": "192.168.20.115",
+   "spare": "192.168.20.116",
+   "port": 502
+  },
+  {
+   "cabinet": 9,
+   "host": "192.168.20.117",
+   "spare": "192.168.20.118",
+   "port": 502
+  },
+  {
+   "cabinet": 10,
+   "host": "192.168.20.119",
+   "spare": "192.168.20.120",
+   "port": 502
+  },
+  {
+   "cabinet": 11,
+   "host": "192.168.20.121",
+   "spare": "192.168.20.122",
+   "port": 502
+  }
+ ],
+ "motors": [
+  {
+   "motor": 1,
+   "cabinet": 1,
+   "slave_id": 1,
+   "x": 287.8,
+   "y": 1003.4,
+   "apex_deg": -95.5,
+   "estimated": false
+  },
+  {
+   "motor": 2,
+   "cabinet": 1,
+   "slave_id": 2,
+   "x": 315.7,
+   "y": 997.2,
+   "apex_deg": -109.6,
+   "estimated": false
+  },
+  {
+   "motor": 3,
+   "cabinet": 1,
+   "slave_id": 3,
+   "x": 341.2,
+   "y": 984.4,
+   "apex_deg": -123.6,
+   "estimated": false
+  },
+  {
+   "motor": 4,
+   "cabinet": 1,
+   "slave_id": 4,
+   "x": 362.9,
+   "y": 965.8,
+   "apex_deg": -137.7,
+   "estimated": false
+  },
+  {
+   "motor": 5,
+   "cabinet": 1,
+   "slave_id": 5,
+   "x": 379.4,
+   "y": 942.5,
+   "apex_deg": 88.2,
+   "estimated": false
+  },
+  {
+   "motor": 6,
+   "cabinet": 1,
+   "slave_id": 6,
+   "x": 389.7,
+   "y": 915.8,
+   "apex_deg": -165.8,
+   "estimated": false
+  },
+  {
+   "motor": 7,
+   "cabinet": 1,
+   "slave_id": 7,
+   "x": 393.3,
+   "y": 887.5,
+   "apex_deg": -178.0,
+   "estimated": false
+  },
+  {
+   "motor": 8,
+   "cabinet": 1,
+   "slave_id": 8,
+   "x": 396.0,
+   "y": 859.0,
+   "apex_deg": -171.3,
+   "estimated": false
+  },
+  {
+   "motor": 9,
+   "cabinet": 1,
+   "slave_id": 9,
+   "x": 402.0,
+   "y": 831.0,
+   "apex_deg": 75.4,
+   "estimated": false
+  },
+  {
+   "motor": 10,
+   "cabinet": 1,
+   "slave_id": 10,
+   "x": 411.1,
+   "y": 803.9,
+   "apex_deg": -158.0,
+   "estimated": false
+  },
+  {
+   "motor": 11,
+   "cabinet": 1,
+   "slave_id": 11,
+   "x": 423.4,
+   "y": 778.0,
+   "apex_deg": -31.3,
+   "estimated": false
+  },
+  {
+   "motor": 12,
+   "cabinet": 1,
+   "slave_id": 12,
+   "x": 438.6,
+   "y": 753.8,
+   "apex_deg": -24.6,
+   "estimated": false
+  },
+  {
+   "motor": 13,
+   "cabinet": 1,
+   "slave_id": 13,
+   "x": 456.5,
+   "y": 731.4,
+   "apex_deg": -17.9,
+   "estimated": false
+  },
+  {
+   "motor": 14,
+   "cabinet": 1,
+   "slave_id": 14,
+   "x": 476.9,
+   "y": 711.3,
+   "apex_deg": -131.3,
+   "estimated": false
+  },
+  {
+   "motor": 15,
+   "cabinet": 1,
+   "slave_id": 15,
+   "x": 499.5,
+   "y": 693.7,
+   "apex_deg": 115.4,
+   "estimated": false
+  },
+  {
+   "motor": 16,
+   "cabinet": 1,
+   "slave_id": 16,
+   "x": 523.9,
+   "y": 678.9,
+   "apex_deg": 2.1,
+   "estimated": false
+  },
+  {
+   "motor": 17,
+   "cabinet": 1,
+   "slave_id": 17,
+   "x": 550.0,
+   "y": 667.0,
+   "apex_deg": 128.8,
+   "estimated": false
+  },
+  {
+   "motor": 18,
+   "cabinet": 1,
+   "slave_id": 18,
+   "x": 577.2,
+   "y": 658.2,
+   "apex_deg": 15.4,
+   "estimated": false
+  },
+  {
+   "motor": 19,
+   "cabinet": 1,
+   "slave_id": 19,
+   "x": 605.3,
+   "y": 652.6,
+   "apex_deg": 142.1,
+   "estimated": false
+  },
+  {
+   "motor": 20,
+   "cabinet": 1,
+   "slave_id": 20,
+   "x": 633.8,
+   "y": 650.4,
+   "apex_deg": -91.2,
+   "estimated": false
+  },
+  {
+   "motor": 21,
+   "cabinet": 1,
+   "slave_id": 21,
+   "x": 662.4,
+   "y": 651.4,
+   "apex_deg": 35.5,
+   "estimated": false
+  },
+  {
+   "motor": 22,
+   "cabinet": 2,
+   "slave_id": 1,
+   "x": 690.7,
+   "y": 655.8,
+   "apex_deg": 162.1,
+   "estimated": false
+  },
+  {
+   "motor": 23,
+   "cabinet": 2,
+   "slave_id": 2,
+   "x": 718.3,
+   "y": 663.5,
+   "apex_deg": -71.2,
+   "estimated": false
+  },
+  {
+   "motor": 24,
+   "cabinet": 2,
+   "slave_id": 3,
+   "x": 744.8,
+   "y": 674.3,
+   "apex_deg": 175.5,
+   "estimated": false
+  },
+  {
+   "motor": 25,
+   "cabinet": 2,
+   "slave_id": 4,
+   "x": 769.9,
+   "y": 688.1,
+   "apex_deg": -57.8,
+   "estimated": false
+  },
+  {
+   "motor": 26,
+   "cabinet": 2,
+   "slave_id": 5,
+   "x": 793.2,
+   "y": 704.7,
+   "apex_deg": -171.1,
+   "estimated": false
+  },
+  {
+   "motor": 27,
+   "cabinet": 2,
+   "slave_id": 6,
+   "x": 814.4,
+   "y": 723.9,
+   "apex_deg": -164.5,
+   "estimated": false
+  },
+  {
+   "motor": 28,
+   "cabinet": 2,
+   "slave_id": 7,
+   "x": 833.6,
+   "y": 745.1,
+   "apex_deg": 74.5,
+   "estimated": false
+  },
+  {
+   "motor": 29,
+   "cabinet": 2,
+   "slave_id": 8,
+   "x": 857.0,
+   "y": 761.4,
+   "apex_deg": 55.1,
+   "estimated": false
+  },
+  {
+   "motor": 30,
+   "cabinet": 2,
+   "slave_id": 9,
+   "x": 884.5,
+   "y": 769.0,
+   "apex_deg": 35.7,
+   "estimated": false
+  },
+  {
+   "motor": 31,
+   "cabinet": 2,
+   "slave_id": 10,
+   "x": 913.0,
+   "y": 767.0,
+   "apex_deg": 136.4,
+   "estimated": false
+  },
+  {
+   "motor": 32,
+   "cabinet": 2,
+   "slave_id": 11,
+   "x": 939.1,
+   "y": 755.7,
+   "apex_deg": 117.0,
+   "estimated": false
+  },
+  {
+   "motor": 33,
+   "cabinet": 2,
+   "slave_id": 12,
+   "x": 960.1,
+   "y": 736.4,
+   "apex_deg": 100.6,
+   "estimated": false
+  },
+  {
+   "motor": 34,
+   "cabinet": 2,
+   "slave_id": 13,
+   "x": 980.0,
+   "y": 715.8,
+   "apex_deg": -12.8,
+   "estimated": false
+  },
+  {
+   "motor": 35,
+   "cabinet": 2,
+   "slave_id": 14,
+   "x": 1002.1,
+   "y": 697.6,
+   "apex_deg": -6.1,
+   "estimated": false
+  },
+  {
+   "motor": 36,
+   "cabinet": 2,
+   "slave_id": 15,
+   "x": 1026.2,
+   "y": 682.1,
+   "apex_deg": 120.6,
+   "estimated": false
+  },
+  {
+   "motor": 37,
+   "cabinet": 2,
+   "slave_id": 16,
+   "x": 1051.9,
+   "y": 669.6,
+   "apex_deg": 7.3,
+   "estimated": false
+  },
+  {
+   "motor": 38,
+   "cabinet": 2,
+   "slave_id": 17,
+   "x": 1078.9,
+   "y": 660.1,
+   "apex_deg": 133.9,
+   "estimated": false
+  },
+  {
+   "motor": 39,
+   "cabinet": 2,
+   "slave_id": 18,
+   "x": 1106.8,
+   "y": 653.8,
+   "apex_deg": 140.6,
+   "estimated": false
+  },
+  {
+   "motor": 40,
+   "cabinet": 2,
+   "slave_id": 19,
+   "x": 1135.3,
+   "y": 650.7,
+   "apex_deg": 27.3,
+   "estimated": false
+  },
+  {
+   "motor": 41,
+   "cabinet": 2,
+   "slave_id": 20,
+   "x": 1163.9,
+   "y": 651.1,
+   "apex_deg": 154.0,
+   "estimated": false
+  },
+  {
+   "motor": 42,
+   "cabinet": 2,
+   "slave_id": 21,
+   "x": 1192.3,
+   "y": 654.7,
+   "apex_deg": 40.7,
+   "estimated": false
+  },
+  {
+   "motor": 43,
+   "cabinet": 3,
+   "slave_id": 1,
+   "x": 1220.0,
+   "y": 661.6,
+   "apex_deg": 47.3,
+   "estimated": false
+  },
+  {
+   "motor": 44,
+   "cabinet": 3,
+   "slave_id": 2,
+   "x": 1246.8,
+   "y": 671.7,
+   "apex_deg": 54.0,
+   "estimated": false
+  },
+  {
+   "motor": 45,
+   "cabinet": 3,
+   "slave_id": 3,
+   "x": 1272.3,
+   "y": 684.9,
+   "apex_deg": -59.3,
+   "estimated": false
+  },
+  {
+   "motor": 46,
+   "cabinet": 3,
+   "slave_id": 4,
+   "x": 1296.0,
+   "y": 700.9,
+   "apex_deg": 67.4,
+   "estimated": false
+  },
+  {
+   "motor": 47,
+   "cabinet": 3,
+   "slave_id": 5,
+   "x": 1317.7,
+   "y": 719.5,
+   "apex_deg": -166.0,
+   "estimated": false
+  },
+  {
+   "motor": 48,
+   "cabinet": 3,
+   "slave_id": 6,
+   "x": 1336.9,
+   "y": 740.8,
+   "apex_deg": -161.1,
+   "estimated": false
+  },
+  {
+   "motor": 49,
+   "cabinet": 3,
+   "slave_id": 7,
+   "x": 1356.4,
+   "y": 761.7,
+   "apex_deg": -164.7,
+   "estimated": false
+  },
+  {
+   "motor": 50,
+   "cabinet": 3,
+   "slave_id": 8,
+   "x": 1377.1,
+   "y": 781.5,
+   "apex_deg": 71.8,
+   "estimated": false
+  },
+  {
+   "motor": 51,
+   "cabinet": 3,
+   "slave_id": 9,
+   "x": 1399.1,
+   "y": 799.9,
+   "apex_deg": -51.7,
+   "estimated": false
+  },
+  {
+   "motor": 52,
+   "cabinet": 3,
+   "slave_id": 10,
+   "x": 1422.1,
+   "y": 816.9,
+   "apex_deg": -55.3,
+   "estimated": false
+  },
+  {
+   "motor": 53,
+   "cabinet": 3,
+   "slave_id": 11,
+   "x": 1446.1,
+   "y": 832.5,
+   "apex_deg": -178.8,
+   "estimated": false
+  },
+  {
+   "motor": 54,
+   "cabinet": 3,
+   "slave_id": 12,
+   "x": 1471.1,
+   "y": 846.5,
+   "apex_deg": 177.6,
+   "estimated": false
+  },
+  {
+   "motor": 55,
+   "cabinet": 3,
+   "slave_id": 13,
+   "x": 1496.8,
+   "y": 859.0,
+   "apex_deg": 174.1,
+   "estimated": false
+  },
+  {
+   "motor": 56,
+   "cabinet": 3,
+   "slave_id": 14,
+   "x": 1523.3,
+   "y": 869.9,
+   "apex_deg": -69.5,
+   "estimated": false
+  },
+  {
+   "motor": 57,
+   "cabinet": 3,
+   "slave_id": 15,
+   "x": 1550.4,
+   "y": 879.1,
+   "apex_deg": 47.0,
+   "estimated": false
+  },
+  {
+   "motor": 58,
+   "cabinet": 3,
+   "slave_id": 16,
+   "x": 1578.0,
+   "y": 886.7,
+   "apex_deg": -76.5,
+   "estimated": false
+  },
+  {
+   "motor": 59,
+   "cabinet": 3,
+   "slave_id": 17,
+   "x": 1606.1,
+   "y": 892.5,
+   "apex_deg": -80.1,
+   "estimated": false
+  },
+  {
+   "motor": 60,
+   "cabinet": 3,
+   "slave_id": 18,
+   "x": 1634.4,
+   "y": 896.5,
+   "apex_deg": 36.4,
+   "estimated": false
+  },
+  {
+   "motor": 61,
+   "cabinet": 3,
+   "slave_id": 19,
+   "x": 1663.0,
+   "y": 898.8,
+   "apex_deg": -87.2,
+   "estimated": false
+  },
+  {
+   "motor": 62,
+   "cabinet": 3,
+   "slave_id": 20,
+   "x": 1691.6,
+   "y": 899.3,
+   "apex_deg": 29.3,
+   "estimated": false
+  },
+  {
+   "motor": 63,
+   "cabinet": 3,
+   "slave_id": 21,
+   "x": 1720.2,
+   "y": 898.1,
+   "apex_deg": 145.8,
+   "estimated": false
+  },
+  {
+   "motor": 64,
+   "cabinet": 4,
+   "slave_id": 1,
+   "x": 1748.7,
+   "y": 895.1,
+   "apex_deg": -97.8,
+   "estimated": false
+  },
+  {
+   "motor": 65,
+   "cabinet": 4,
+   "slave_id": 2,
+   "x": 1776.9,
+   "y": 890.4,
+   "apex_deg": -101.3,
+   "estimated": false
+  },
+  {
+   "motor": 66,
+   "cabinet": 4,
+   "slave_id": 3,
+   "x": 1804.8,
+   "y": 883.9,
+   "apex_deg": 135.1,
+   "estimated": false
+  },
+  {
+   "motor": 67,
+   "cabinet": 4,
+   "slave_id": 4,
+   "x": 1832.3,
+   "y": 875.7,
+   "apex_deg": -108.4,
+   "estimated": false
+  },
+  {
+   "motor": 68,
+   "cabinet": 4,
+   "slave_id": 5,
+   "x": 1859.1,
+   "y": 865.8,
+   "apex_deg": 128.0,
+   "estimated": false
+  },
+  {
+   "motor": 69,
+   "cabinet": 4,
+   "slave_id": 6,
+   "x": 1885.3,
+   "y": 854.3,
+   "apex_deg": 4.5,
+   "estimated": false
+  },
+  {
+   "motor": 70,
+   "cabinet": 4,
+   "slave_id": 7,
+   "x": 1910.8,
+   "y": 841.1,
+   "apex_deg": 1.0,
+   "estimated": false
+  },
+  {
+   "motor": 71,
+   "cabinet": 4,
+   "slave_id": 8,
+   "x": 1935.4,
+   "y": 826.5,
+   "apex_deg": -2.6,
+   "estimated": false
+  },
+  {
+   "motor": 72,
+   "cabinet": 4,
+   "slave_id": 9,
+   "x": 1959.0,
+   "y": 810.3,
+   "apex_deg": 113.9,
+   "estimated": false
+  },
+  {
+   "motor": 73,
+   "cabinet": 4,
+   "slave_id": 10,
+   "x": 1981.6,
+   "y": 792.7,
+   "apex_deg": 110.3,
+   "estimated": false
+  },
+  {
+   "motor": 74,
+   "cabinet": 4,
+   "slave_id": 11,
+   "x": 2003.1,
+   "y": 773.8,
+   "apex_deg": -133.2,
+   "estimated": false
+  },
+  {
+   "motor": 75,
+   "cabinet": 4,
+   "slave_id": 12,
+   "x": 2023.4,
+   "y": 753.5,
+   "apex_deg": -16.7,
+   "estimated": false
+  },
+  {
+   "motor": 76,
+   "cabinet": 4,
+   "slave_id": 13,
+   "x": 2043.0,
+   "y": 732.7,
+   "apex_deg": 106.9,
+   "estimated": false
+  },
+  {
+   "motor": 77,
+   "cabinet": 4,
+   "slave_id": 14,
+   "x": 2065.0,
+   "y": 714.4,
+   "apex_deg": -126.4,
+   "estimated": false
+  },
+  {
+   "motor": 78,
+   "cabinet": 4,
+   "slave_id": 15,
+   "x": 2089.0,
+   "y": 698.8,
+   "apex_deg": 120.3,
+   "estimated": false
+  },
+  {
+   "motor": 79,
+   "cabinet": 4,
+   "slave_id": 16,
+   "x": 2114.6,
+   "y": 686.1,
+   "apex_deg": 6.9,
+   "estimated": false
+  },
+  {
+   "motor": 80,
+   "cabinet": 4,
+   "slave_id": 17,
+   "x": 2141.6,
+   "y": 676.4,
+   "apex_deg": -106.4,
+   "estimated": false
+  },
+  {
+   "motor": 81,
+   "cabinet": 4,
+   "slave_id": 18,
+   "x": 2169.5,
+   "y": 670.0,
+   "apex_deg": 140.3,
+   "estimated": false
+  },
+  {
+   "motor": 82,
+   "cabinet": 4,
+   "slave_id": 19,
+   "x": 2197.9,
+   "y": 666.8,
+   "apex_deg": -93.0,
+   "estimated": false
+  },
+  {
+   "motor": 83,
+   "cabinet": 4,
+   "slave_id": 20,
+   "x": 2226.5,
+   "y": 666.9,
+   "apex_deg": 33.6,
+   "estimated": false
+  },
+  {
+   "motor": 84,
+   "cabinet": 4,
+   "slave_id": 21,
+   "x": 2254.9,
+   "y": 670.4,
+   "apex_deg": -79.7,
+   "estimated": false
+  },
+  {
+   "motor": 85,
+   "cabinet": 5,
+   "slave_id": 1,
+   "x": 2282.8,
+   "y": 677.2,
+   "apex_deg": 47.0,
+   "estimated": false
+  },
+  {
+   "motor": 86,
+   "cabinet": 5,
+   "slave_id": 2,
+   "x": 2309.6,
+   "y": 687.1,
+   "apex_deg": 173.7,
+   "estimated": false
+  },
+  {
+   "motor": 87,
+   "cabinet": 5,
+   "slave_id": 3,
+   "x": 2335.1,
+   "y": 700.1,
+   "apex_deg": 60.3,
+   "estimated": false
+  },
+  {
+   "motor": 88,
+   "cabinet": 5,
+   "slave_id": 4,
+   "x": 2358.9,
+   "y": 716.0,
+   "apex_deg": -53.0,
+   "estimated": false
+  },
+  {
+   "motor": 89,
+   "cabinet": 5,
+   "slave_id": 5,
+   "x": 2380.7,
+   "y": 734.5,
+   "apex_deg": -46.3,
+   "estimated": false
+  },
+  {
+   "motor": 90,
+   "cabinet": 5,
+   "slave_id": 6,
+   "x": 2400.2,
+   "y": 755.4,
+   "apex_deg": 80.4,
+   "estimated": false
+  },
+  {
+   "motor": 91,
+   "cabinet": 5,
+   "slave_id": 7,
+   "x": 2417.2,
+   "y": 778.5,
+   "apex_deg": -33.0,
+   "estimated": false
+  },
+  {
+   "motor": 92,
+   "cabinet": 5,
+   "slave_id": 8,
+   "x": 2431.3,
+   "y": 803.4,
+   "apex_deg": -146.3,
+   "estimated": false
+  },
+  {
+   "motor": 93,
+   "cabinet": 5,
+   "slave_id": 9,
+   "x": 2443.7,
+   "y": 829.2,
+   "apex_deg": 88.7,
+   "estimated": false
+  },
+  {
+   "motor": 94,
+   "cabinet": 5,
+   "slave_id": 10,
+   "x": 2460.5,
+   "y": 852.3,
+   "apex_deg": -40.9,
+   "estimated": false
+  },
+  {
+   "motor": 95,
+   "cabinet": 5,
+   "slave_id": 11,
+   "x": 2481.0,
+   "y": 872.3,
+   "apex_deg": -170.6,
+   "estimated": false
+  },
+  {
+   "motor": 96,
+   "cabinet": 5,
+   "slave_id": 12,
+   "x": 2504.6,
+   "y": 888.5,
+   "apex_deg": 59.8,
+   "estimated": false
+  },
+  {
+   "motor": 97,
+   "cabinet": 5,
+   "slave_id": 13,
+   "x": 2530.5,
+   "y": 900.6,
+   "apex_deg": 50.1,
+   "estimated": false
+  },
+  {
+   "motor": 98,
+   "cabinet": 5,
+   "slave_id": 14,
+   "x": 2558.1,
+   "y": 908.1,
+   "apex_deg": 40.5,
+   "estimated": false
+  },
+  {
+   "motor": 99,
+   "cabinet": 5,
+   "slave_id": 15,
+   "x": 2586.5,
+   "y": 911.0,
+   "apex_deg": -89.2,
+   "estimated": false
+  },
+  {
+   "motor": 100,
+   "cabinet": 5,
+   "slave_id": 16,
+   "x": 2615.1,
+   "y": 909.0,
+   "apex_deg": 141.2,
+   "estimated": false
+  },
+  {
+   "motor": 101,
+   "cabinet": 5,
+   "slave_id": 17,
+   "x": 2642.9,
+   "y": 902.2,
+   "apex_deg": 11.5,
+   "estimated": false
+  },
+  {
+   "motor": 102,
+   "cabinet": 5,
+   "slave_id": 18,
+   "x": 2669.2,
+   "y": 890.9,
+   "apex_deg": -118.1,
+   "estimated": false
+  },
+  {
+   "motor": 103,
+   "cabinet": 5,
+   "slave_id": 19,
+   "x": 2693.5,
+   "y": 875.9,
+   "apex_deg": -119.5,
+   "estimated": false
+  },
+  {
+   "motor": 104,
+   "cabinet": 5,
+   "slave_id": 20,
+   "x": 2719.2,
+   "y": 863.3,
+   "apex_deg": 7.2,
+   "estimated": false
+  },
+  {
+   "motor": 105,
+   "cabinet": 5,
+   "slave_id": 21,
+   "x": 2746.2,
+   "y": 853.8,
+   "apex_deg": 133.9,
+   "estimated": false
+  },
+  {
+   "motor": 106,
+   "cabinet": 6,
+   "slave_id": 1,
+   "x": 2774.1,
+   "y": 847.4,
+   "apex_deg": 140.6,
+   "estimated": false
+  },
+  {
+   "motor": 107,
+   "cabinet": 6,
+   "slave_id": 2,
+   "x": 2802.6,
+   "y": 844.4,
+   "apex_deg": 147.2,
+   "estimated": false
+  },
+  {
+   "motor": 108,
+   "cabinet": 6,
+   "slave_id": 3,
+   "x": 2831.2,
+   "y": 844.7,
+   "apex_deg": 33.9,
+   "estimated": false
+  },
+  {
+   "motor": 109,
+   "cabinet": 6,
+   "slave_id": 4,
+   "x": 2859.6,
+   "y": 848.3,
+   "apex_deg": 160.6,
+   "estimated": false
+  },
+  {
+   "motor": 110,
+   "cabinet": 6,
+   "slave_id": 5,
+   "x": 2887.4,
+   "y": 855.2,
+   "apex_deg": 47.3,
+   "estimated": false
+  },
+  {
+   "motor": 111,
+   "cabinet": 6,
+   "slave_id": 6,
+   "x": 2914.2,
+   "y": 865.3,
+   "apex_deg": 54.0,
+   "estimated": false
+  },
+  {
+   "motor": 112,
+   "cabinet": 6,
+   "slave_id": 7,
+   "x": 2939.6,
+   "y": 878.4,
+   "apex_deg": -179.4,
+   "estimated": false
+  },
+  {
+   "motor": 113,
+   "cabinet": 6,
+   "slave_id": 8,
+   "x": 2963.3,
+   "y": 894.4,
+   "apex_deg": -172.7,
+   "estimated": false
+  },
+  {
+   "motor": 114,
+   "cabinet": 6,
+   "slave_id": 9,
+   "x": 2985.1,
+   "y": 913.1,
+   "apex_deg": 74.0,
+   "estimated": false
+  },
+  {
+   "motor": 115,
+   "cabinet": 6,
+   "slave_id": 10,
+   "x": 3004.5,
+   "y": 934.1,
+   "apex_deg": -39.3,
+   "estimated": false
+  },
+  {
+   "motor": 116,
+   "cabinet": 6,
+   "slave_id": 11,
+   "x": 3021.3,
+   "y": 957.2,
+   "apex_deg": -152.7,
+   "estimated": false
+  },
+  {
+   "motor": 117,
+   "cabinet": 6,
+   "slave_id": 12,
+   "x": 3035.3,
+   "y": 982.2,
+   "apex_deg": -26.0,
+   "estimated": false
+  },
+  {
+   "motor": 118,
+   "cabinet": 6,
+   "slave_id": 13,
+   "x": 3046.3,
+   "y": 1008.6,
+   "apex_deg": 100.7,
+   "estimated": false
+  },
+  {
+   "motor": 119,
+   "cabinet": 6,
+   "slave_id": 14,
+   "x": 3054.2,
+   "y": 1036.1,
+   "apex_deg": -132.6,
+   "estimated": false
+  },
+  {
+   "motor": 120,
+   "cabinet": 6,
+   "slave_id": 15,
+   "x": 3058.9,
+   "y": 1064.4,
+   "apex_deg": 114.0,
+   "estimated": false
+  },
+  {
+   "motor": 121,
+   "cabinet": 6,
+   "slave_id": 16,
+   "x": 3060.2,
+   "y": 1093.0,
+   "apex_deg": 120.7,
+   "estimated": false
+  },
+  {
+   "motor": 122,
+   "cabinet": 6,
+   "slave_id": 17,
+   "x": 3058.1,
+   "y": 1121.5,
+   "apex_deg": -112.6,
+   "estimated": false
+  },
+  {
+   "motor": 123,
+   "cabinet": 6,
+   "slave_id": 18,
+   "x": 3052.8,
+   "y": 1149.6,
+   "apex_deg": 14.1,
+   "estimated": false
+  },
+  {
+   "motor": 124,
+   "cabinet": 6,
+   "slave_id": 19,
+   "x": 3044.3,
+   "y": 1177.0,
+   "apex_deg": 20.7,
+   "estimated": false
+  },
+  {
+   "motor": 125,
+   "cabinet": 6,
+   "slave_id": 20,
+   "x": 3032.6,
+   "y": 1203.1,
+   "apex_deg": -92.6,
+   "estimated": false
+  },
+  {
+   "motor": 126,
+   "cabinet": 6,
+   "slave_id": 21,
+   "x": 3018.0,
+   "y": 1227.7,
+   "apex_deg": 154.1,
+   "estimated": false
+  },
+  {
+   "motor": 127,
+   "cabinet": 7,
+   "slave_id": 1,
+   "x": 3000.6,
+   "y": 1250.4,
+   "apex_deg": 160.8,
+   "estimated": false
+  },
+  {
+   "motor": 128,
+   "cabinet": 7,
+   "slave_id": 2,
+   "x": 2980.6,
+   "y": 1271.0,
+   "apex_deg": 47.4,
+   "estimated": false
+  },
+  {
+   "motor": 129,
+   "cabinet": 7,
+   "slave_id": 3,
+   "x": 2958.5,
+   "y": 1289.1,
+   "apex_deg": -65.9,
+   "estimated": false
+  },
+  {
+   "motor": 130,
+   "cabinet": 7,
+   "slave_id": 4,
+   "x": 2934.3,
+   "y": 1304.5,
+   "apex_deg": 60.8,
+   "estimated": false
+  },
+  {
+   "motor": 131,
+   "cabinet": 7,
+   "slave_id": 5,
+   "x": 2908.6,
+   "y": 1317.0,
+   "apex_deg": -172.5,
+   "estimated": false
+  },
+  {
+   "motor": 132,
+   "cabinet": 7,
+   "slave_id": 6,
+   "x": 2881.5,
+   "y": 1326.4,
+   "apex_deg": -45.9,
+   "estimated": false
+  },
+  {
+   "motor": 133,
+   "cabinet": 7,
+   "slave_id": 7,
+   "x": 2853.5,
+   "y": 1332.5,
+   "apex_deg": 81.1,
+   "estimated": true
+  },
+  {
+   "motor": 134,
+   "cabinet": 7,
+   "slave_id": 8,
+   "x": 2824.9,
+   "y": 1335.3,
+   "apex_deg": 87.9,
+   "estimated": true
+  },
+  {
+   "motor": 135,
+   "cabinet": 7,
+   "slave_id": 9,
+   "x": 2796.2,
+   "y": 1334.6,
+   "apex_deg": 94.7,
+   "estimated": true
+  },
+  {
+   "motor": 136,
+   "cabinet": 7,
+   "slave_id": 10,
+   "x": 2767.9,
+   "y": 1330.5,
+   "apex_deg": 101.6,
+   "estimated": true
+  },
+  {
+   "motor": 137,
+   "cabinet": 7,
+   "slave_id": 11,
+   "x": 2740.1,
+   "y": 1323.1,
+   "apex_deg": 108.4,
+   "estimated": true
+  },
+  {
+   "motor": 138,
+   "cabinet": 8,
+   "slave_id": 1,
+   "x": 2400.7,
+   "y": 1336.6,
+   "apex_deg": -36.0,
+   "estimated": false
+  },
+  {
+   "motor": 139,
+   "cabinet": 8,
+   "slave_id": 2,
+   "x": 2372.9,
+   "y": 1342.9,
+   "apex_deg": -169.6,
+   "estimated": false
+  },
+  {
+   "motor": 140,
+   "cabinet": 8,
+   "slave_id": 3,
+   "x": 2347.4,
+   "y": 1355.6,
+   "apex_deg": 56.8,
+   "estimated": false
+  },
+  {
+   "motor": 141,
+   "cabinet": 8,
+   "slave_id": 4,
+   "x": 2325.5,
+   "y": 1373.9,
+   "apex_deg": 43.2,
+   "estimated": false
+  },
+  {
+   "motor": 142,
+   "cabinet": 8,
+   "slave_id": 5,
+   "x": 2308.6,
+   "y": 1396.9,
+   "apex_deg": 149.6,
+   "estimated": false
+  },
+  {
+   "motor": 143,
+   "cabinet": 8,
+   "slave_id": 6,
+   "x": 2297.6,
+   "y": 1423.2,
+   "apex_deg": -104.0,
+   "estimated": false
+  },
+  {
+   "motor": 144,
+   "cabinet": 8,
+   "slave_id": 7,
+   "x": 2292.9,
+   "y": 1451.3,
+   "apex_deg": 4.8,
+   "estimated": false
+  },
+  {
+   "motor": 145,
+   "cabinet": 8,
+   "slave_id": 8,
+   "x": 2288.9,
+   "y": 1479.6,
+   "apex_deg": 131.5,
+   "estimated": false
+  },
+  {
+   "motor": 146,
+   "cabinet": 8,
+   "slave_id": 9,
+   "x": 2281.6,
+   "y": 1507.2,
+   "apex_deg": 18.1,
+   "estimated": false
+  },
+  {
+   "motor": 147,
+   "cabinet": 8,
+   "slave_id": 10,
+   "x": 2271.1,
+   "y": 1533.8,
+   "apex_deg": 24.8,
+   "estimated": false
+  },
+  {
+   "motor": 148,
+   "cabinet": 8,
+   "slave_id": 11,
+   "x": 2257.6,
+   "y": 1558.9,
+   "apex_deg": 151.5,
+   "estimated": false
+  },
+  {
+   "motor": 149,
+   "cabinet": 8,
+   "slave_id": 12,
+   "x": 2241.3,
+   "y": 1582.4,
+   "apex_deg": -81.9,
+   "estimated": false
+  },
+  {
+   "motor": 150,
+   "cabinet": 8,
+   "slave_id": 13,
+   "x": 2222.4,
+   "y": 1603.8,
+   "apex_deg": 164.8,
+   "estimated": false
+  },
+  {
+   "motor": 151,
+   "cabinet": 8,
+   "slave_id": 14,
+   "x": 2201.2,
+   "y": 1622.9,
+   "apex_deg": -68.6,
+   "estimated": false
+  },
+  {
+   "motor": 152,
+   "cabinet": 8,
+   "slave_id": 15,
+   "x": 2177.8,
+   "y": 1639.4,
+   "apex_deg": -61.9,
+   "estimated": false
+  },
+  {
+   "motor": 153,
+   "cabinet": 8,
+   "slave_id": 16,
+   "x": 2152.8,
+   "y": 1653.0,
+   "apex_deg": -55.2,
+   "estimated": false
+  },
+  {
+   "motor": 154,
+   "cabinet": 8,
+   "slave_id": 17,
+   "x": 2126.3,
+   "y": 1663.7,
+   "apex_deg": -48.6,
+   "estimated": false
+  },
+  {
+   "motor": 155,
+   "cabinet": 8,
+   "slave_id": 18,
+   "x": 2098.7,
+   "y": 1671.2,
+   "apex_deg": -161.9,
+   "estimated": false
+  },
+  {
+   "motor": 156,
+   "cabinet": 8,
+   "slave_id": 19,
+   "x": 2070.5,
+   "y": 1675.4,
+   "apex_deg": -155.3,
+   "estimated": false
+  },
+  {
+   "motor": 157,
+   "cabinet": 8,
+   "slave_id": 20,
+   "x": 2041.9,
+   "y": 1676.4,
+   "apex_deg": -28.6,
+   "estimated": false
+  },
+  {
+   "motor": 158,
+   "cabinet": 8,
+   "slave_id": 21,
+   "x": 2013.4,
+   "y": 1674.1,
+   "apex_deg": -21.9,
+   "estimated": false
+  },
+  {
+   "motor": 159,
+   "cabinet": 8,
+   "slave_id": 22,
+   "x": 1985.4,
+   "y": 1668.4,
+   "apex_deg": -15.3,
+   "estimated": false
+  },
+  {
+   "motor": 160,
+   "cabinet": 9,
+   "slave_id": 1,
+   "x": 1958.3,
+   "y": 1659.6,
+   "apex_deg": -128.6,
+   "estimated": false
+  },
+  {
+   "motor": 161,
+   "cabinet": 9,
+   "slave_id": 2,
+   "x": 1932.3,
+   "y": 1647.6,
+   "apex_deg": -2.0,
+   "estimated": false
+  },
+  {
+   "motor": 162,
+   "cabinet": 9,
+   "slave_id": 3,
+   "x": 1908.0,
+   "y": 1632.8,
+   "apex_deg": 4.7,
+   "estimated": false
+  },
+  {
+   "motor": 163,
+   "cabinet": 9,
+   "slave_id": 4,
+   "x": 1885.5,
+   "y": 1615.2,
+   "apex_deg": 131.4,
+   "estimated": false
+  },
+  {
+   "motor": 164,
+   "cabinet": 9,
+   "slave_id": 5,
+   "x": 1865.1,
+   "y": 1595.1,
+   "apex_deg": 18.0,
+   "estimated": false
+  },
+  {
+   "motor": 165,
+   "cabinet": 9,
+   "slave_id": 6,
+   "x": 1847.3,
+   "y": 1572.8,
+   "apex_deg": 144.7,
+   "estimated": false
+  },
+  {
+   "motor": 166,
+   "cabinet": 9,
+   "slave_id": 7,
+   "x": 1832.2,
+   "y": 1548.5,
+   "apex_deg": -88.7,
+   "estimated": false
+  },
+  {
+   "motor": 167,
+   "cabinet": 9,
+   "slave_id": 8,
+   "x": 1820.0,
+   "y": 1522.7,
+   "apex_deg": 38.0,
+   "estimated": false
+  },
+  {
+   "motor": 168,
+   "cabinet": 9,
+   "slave_id": 9,
+   "x": 1810.8,
+   "y": 1495.7,
+   "apex_deg": 44.7,
+   "estimated": false
+  },
+  {
+   "motor": 169,
+   "cabinet": 9,
+   "slave_id": 10,
+   "x": 1804.9,
+   "y": 1467.7,
+   "apex_deg": -68.7,
+   "estimated": false
+  },
+  {
+   "motor": 170,
+   "cabinet": 9,
+   "slave_id": 11,
+   "x": 1802.2,
+   "y": 1439.3,
+   "apex_deg": 178.0,
+   "estimated": false
+  },
+  {
+   "motor": 171,
+   "cabinet": 9,
+   "slave_id": 12,
+   "x": 1802.0,
+   "y": 1410.7,
+   "apex_deg": 180.0,
+   "estimated": false
+  },
+  {
+   "motor": 172,
+   "cabinet": 9,
+   "slave_id": 13,
+   "x": 1802.0,
+   "y": 1382.1,
+   "apex_deg": 60.0,
+   "estimated": false
+  },
+  {
+   "motor": 173,
+   "cabinet": 9,
+   "slave_id": 14,
+   "x": 1802.0,
+   "y": 1353.6,
+   "apex_deg": -60.0,
+   "estimated": false
+  },
+  {
+   "motor": 174,
+   "cabinet": 9,
+   "slave_id": 15,
+   "x": 1800.0,
+   "y": 1325.1,
+   "apex_deg": 51.0,
+   "estimated": false
+  },
+  {
+   "motor": 175,
+   "cabinet": 9,
+   "slave_id": 16,
+   "x": 1793.1,
+   "y": 1297.4,
+   "apex_deg": 161.1,
+   "estimated": false
+  },
+  {
+   "motor": 176,
+   "cabinet": 9,
+   "slave_id": 17,
+   "x": 1781.6,
+   "y": 1271.3,
+   "apex_deg": -88.8,
+   "estimated": false
+  },
+  {
+   "motor": 177,
+   "cabinet": 9,
+   "slave_id": 18,
+   "x": 1765.7,
+   "y": 1247.6,
+   "apex_deg": 21.3,
+   "estimated": false
+  },
+  {
+   "motor": 178,
+   "cabinet": 9,
+   "slave_id": 19,
+   "x": 1746.0,
+   "y": 1226.9,
+   "apex_deg": 131.3,
+   "estimated": false
+  },
+  {
+   "motor": 179,
+   "cabinet": 9,
+   "slave_id": 20,
+   "x": 1723.0,
+   "y": 1210.0,
+   "apex_deg": 121.4,
+   "estimated": false
+  },
+  {
+   "motor": 180,
+   "cabinet": 9,
+   "slave_id": 21,
+   "x": 1697.4,
+   "y": 1197.3,
+   "apex_deg": -8.5,
+   "estimated": false
+  },
+  {
+   "motor": 181,
+   "cabinet": 9,
+   "slave_id": 22,
+   "x": 1670.1,
+   "y": 1189.2,
+   "apex_deg": -18.4,
+   "estimated": false
+  },
+  {
+   "motor": 182,
+   "cabinet": 9,
+   "slave_id": 23,
+   "x": 1641.7,
+   "y": 1185.9,
+   "apex_deg": -148.4,
+   "estimated": false
+  },
+  {
+   "motor": 183,
+   "cabinet": 9,
+   "slave_id": 24,
+   "x": 1613.2,
+   "y": 1187.6,
+   "apex_deg": -38.3,
+   "estimated": false
+  },
+  {
+   "motor": 184,
+   "cabinet": 10,
+   "slave_id": 1,
+   "x": 1585.4,
+   "y": 1194.1,
+   "apex_deg": 71.8,
+   "estimated": false
+  },
+  {
+   "motor": 185,
+   "cabinet": 10,
+   "slave_id": 2,
+   "x": 1559.2,
+   "y": 1205.4,
+   "apex_deg": -178.1,
+   "estimated": false
+  },
+  {
+   "motor": 186,
+   "cabinet": 10,
+   "slave_id": 3,
+   "x": 1535.3,
+   "y": 1220.9,
+   "apex_deg": 171.9,
+   "estimated": false
+  },
+  {
+   "motor": 187,
+   "cabinet": 10,
+   "slave_id": 4,
+   "x": 1514.4,
+   "y": 1240.4,
+   "apex_deg": 42.0,
+   "estimated": false
+  },
+  {
+   "motor": 188,
+   "cabinet": 10,
+   "slave_id": 5,
+   "x": 1497.1,
+   "y": 1263.1,
+   "apex_deg": -84.6,
+   "estimated": false
+  },
+  {
+   "motor": 189,
+   "cabinet": 10,
+   "slave_id": 6,
+   "x": 1478.3,
+   "y": 1284.6,
+   "apex_deg": 167.0,
+   "estimated": false
+  },
+  {
+   "motor": 190,
+   "cabinet": 10,
+   "slave_id": 7,
+   "x": 1455.6,
+   "y": 1301.9,
+   "apex_deg": 178.6,
+   "estimated": false
+  },
+  {
+   "motor": 191,
+   "cabinet": 10,
+   "slave_id": 8,
+   "x": 1429.9,
+   "y": 1314.2,
+   "apex_deg": -169.8,
+   "estimated": false
+  },
+  {
+   "motor": 192,
+   "cabinet": 10,
+   "slave_id": 9,
+   "x": 1402.2,
+   "y": 1321.1,
+   "apex_deg": 81.8,
+   "estimated": false
+  },
+  {
+   "motor": 193,
+   "cabinet": 10,
+   "slave_id": 10,
+   "x": 1373.7,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 194,
+   "cabinet": 10,
+   "slave_id": 11,
+   "x": 1345.1,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 195,
+   "cabinet": 10,
+   "slave_id": 12,
+   "x": 1316.6,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 196,
+   "cabinet": 10,
+   "slave_id": 13,
+   "x": 1288.0,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 197,
+   "cabinet": 10,
+   "slave_id": 14,
+   "x": 1259.4,
+   "y": 1322.6,
+   "apex_deg": -30.0,
+   "estimated": false
+  },
+  {
+   "motor": 198,
+   "cabinet": 10,
+   "slave_id": 15,
+   "x": 1230.8,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 199,
+   "cabinet": 10,
+   "slave_id": 16,
+   "x": 1202.2,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 200,
+   "cabinet": 10,
+   "slave_id": 17,
+   "x": 1173.7,
+   "y": 1322.6,
+   "apex_deg": -150.0,
+   "estimated": false
+  },
+  {
+   "motor": 201,
+   "cabinet": 10,
+   "slave_id": 18,
+   "x": 1145.1,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 202,
+   "cabinet": 10,
+   "slave_id": 19,
+   "x": 1116.5,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 203,
+   "cabinet": 10,
+   "slave_id": 20,
+   "x": 1087.9,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 204,
+   "cabinet": 10,
+   "slave_id": 21,
+   "x": 1059.4,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 205,
+   "cabinet": 10,
+   "slave_id": 22,
+   "x": 1030.8,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 206,
+   "cabinet": 10,
+   "slave_id": 23,
+   "x": 1002.2,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 207,
+   "cabinet": 10,
+   "slave_id": 24,
+   "x": 973.6,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 208,
+   "cabinet": 11,
+   "slave_id": 1,
+   "x": 945.0,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 209,
+   "cabinet": 11,
+   "slave_id": 2,
+   "x": 916.5,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 210,
+   "cabinet": 11,
+   "slave_id": 3,
+   "x": 887.9,
+   "y": 1322.6,
+   "apex_deg": -150.0,
+   "estimated": false
+  },
+  {
+   "motor": 211,
+   "cabinet": 11,
+   "slave_id": 4,
+   "x": 859.3,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 212,
+   "cabinet": 11,
+   "slave_id": 5,
+   "x": 830.7,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 213,
+   "cabinet": 11,
+   "slave_id": 6,
+   "x": 802.2,
+   "y": 1322.6,
+   "apex_deg": -30.0,
+   "estimated": false
+  },
+  {
+   "motor": 214,
+   "cabinet": 11,
+   "slave_id": 7,
+   "x": 773.6,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 215,
+   "cabinet": 11,
+   "slave_id": 8,
+   "x": 745.0,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 216,
+   "cabinet": 11,
+   "slave_id": 9,
+   "x": 716.4,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 217,
+   "cabinet": 11,
+   "slave_id": 10,
+   "x": 687.8,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 218,
+   "cabinet": 11,
+   "slave_id": 11,
+   "x": 659.3,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 219,
+   "cabinet": 11,
+   "slave_id": 12,
+   "x": 630.7,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 220,
+   "cabinet": 11,
+   "slave_id": 13,
+   "x": 602.1,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 221,
+   "cabinet": 11,
+   "slave_id": 14,
+   "x": 573.5,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 222,
+   "cabinet": 11,
+   "slave_id": 15,
+   "x": 544.9,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 223,
+   "cabinet": 11,
+   "slave_id": 16,
+   "x": 516.4,
+   "y": 1322.6,
+   "apex_deg": -150.0,
+   "estimated": false
+  },
+  {
+   "motor": 224,
+   "cabinet": 11,
+   "slave_id": 17,
+   "x": 487.8,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 225,
+   "cabinet": 11,
+   "slave_id": 18,
+   "x": 459.2,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 226,
+   "cabinet": 11,
+   "slave_id": 19,
+   "x": 430.6,
+   "y": 1322.6,
+   "apex_deg": -150.0,
+   "estimated": false
+  },
+  {
+   "motor": 227,
+   "cabinet": 11,
+   "slave_id": 20,
+   "x": 402.1,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 228,
+   "cabinet": 11,
+   "slave_id": 21,
+   "x": 373.5,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 229,
+   "cabinet": 11,
+   "slave_id": 22,
+   "x": 344.9,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 230,
+   "cabinet": 11,
+   "slave_id": 23,
+   "x": 316.3,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  },
+  {
+   "motor": 231,
+   "cabinet": 11,
+   "slave_id": 24,
+   "x": 287.7,
+   "y": 1322.6,
+   "apex_deg": 90.0,
+   "estimated": false
+  }
+ ]
+}
