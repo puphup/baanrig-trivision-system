@@ -12,7 +12,7 @@ async def main():
                 "motors": [{"gateway": "gw1", "slave_id": 1, "driver_type": "icl_rs"}],
                 "motor_extras": {"gw1.1": {"motor": 1, "label": "M001", "cabinet": 1, "x": 1.0, "y": 2.0, "apex_deg": -90.0, "estimated": False}}}
     S.zero_offsets = {"gw1.1": 1000}
-    S._start_pollers()
+    await S._start_pollers()
     await asyncio.sleep(0.3)
     assert S.status_cache["gw1.1"]["position_pulses"] == 4000
     st = await S._read_one_status("gw1.1")
@@ -21,9 +21,9 @@ async def main():
     data = await S._build_status()
     inv = data["inventory"][0]
     assert inv["label"] == "M001" and inv["motor"] == 1 and inv["cabinet"] == 1 and inv["apex_deg"] == -90.0
-    S._stop_pollers()
-    await asyncio.sleep(0.05)
-    assert all(t.done() for t in S._poll_tasks) or not S._poll_tasks
+    tasks = list(S._poll_tasks)
+    await S._stop_pollers()
+    assert tasks and all(t.done() for t in tasks)
     print("ok")
 
 asyncio.run(main())

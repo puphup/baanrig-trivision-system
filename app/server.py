@@ -171,14 +171,14 @@ async def _reload_runtime():
             sequencer.cancel()
         # Cancel any running auto-cycle; its drivers map is about to be replaced.
         await show.stop_auto()
-        _stop_pollers()
+        await _stop_pollers()
         await _teardown_runtime()
         new_g, new_d, new_s = await _build_runtime(config)
         gateways = new_g
         drivers = new_d
         sim_motors = new_s
         sequencer = MultiMotorSequencer(drivers=drivers, motor_keys=list(drivers.keys()))
-        _start_pollers()
+        await _start_pollers()
         # Fresh array → face 1 by convention.
         await show.set_current_page(1)
 
@@ -245,6 +245,8 @@ async def _reconnect_loop():
 async def _poll_cabinet(keys: list[str]) -> None:
     """Continuously read every motor on one bus into status_cache. Buses run in
     their own task so a slow/offline cabinet never delays the others."""
+    # ponytail: tcp polls back-to-back with no pacing; add a minimum
+    # inter-cycle delay if a bus saturates.
     interval = 0.1 if config.get("mode") != "tcp" else 0.0
     while True:
         for key in keys:
@@ -260,17 +262,20 @@ async def _poll_cabinet(keys: list[str]) -> None:
         await asyncio.sleep(interval)
 
 
-def _start_pollers() -> None:
-    _stop_pollers()
+async def _start_pollers() -> None:
+    await _stop_pollers()
     by_gw: dict[str, list[str]] = {}
     for key in drivers:
         by_gw.setdefault(key.rsplit(".", 1)[0], []).append(key)
     _poll_tasks.extend(asyncio.create_task(_poll_cabinet(keys)) for keys in by_gw.values())
 
 
-def _stop_pollers() -> None:
-    for t in _poll_tasks:
+async def _stop_pollers() -> None:
+    tasks = list(_poll_tasks)
+    for t in tasks:
         t.cancel()
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
     _poll_tasks.clear()
     status_cache.clear()
 
@@ -284,14 +289,14 @@ async def lifespan(app: FastAPI):
     drivers = new_d
     sim_motors = new_s
     sequencer = MultiMotorSequencer(drivers=drivers, motor_keys=list(drivers.keys()))
-    _start_pollers()
+    await _start_pollers()
 
     broadcast_task = asyncio.create_task(_broadcast_loop())
     reconnect_task = asyncio.create_task(_reconnect_loop())
     yield
     broadcast_task.cancel()
     reconnect_task.cancel()
-    _stop_pollers()
+    await _stop_pollers()
     await _teardown_runtime()
 
 
