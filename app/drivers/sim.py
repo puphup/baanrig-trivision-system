@@ -55,6 +55,10 @@ class SimDriver(MotorDriver):
         # Make the current sim position the origin.
         self.motor.position = 0.0
 
+    async def seek_home(self) -> None:
+        # ponytail: sim has no home switch; homing == snap to origin.
+        self.motor.position = 0.0
+
     async def read_status(self) -> MotorStatus:
         status = self.motor.status_word
         return {

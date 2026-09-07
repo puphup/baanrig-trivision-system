@@ -104,6 +104,10 @@ class MotorDriver(ABC):
     @abstractmethod
     async def read_status(self) -> MotorStatus: ...
 
+    async def read_status_fast(self) -> MotorStatus:
+        """Poller entry point. Drivers override with fewer bus transactions."""
+        return await self.read_status()
+
     @abstractmethod
     async def test_connection(self) -> dict:
         """Lightweight ping: returns ``{"ok": bool, "slave_id": int, ...}``."""

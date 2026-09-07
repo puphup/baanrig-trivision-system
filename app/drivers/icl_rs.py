@@ -217,6 +217,33 @@ class ICLRSDriver(MotorDriver):
             "offline": False,
         }
 
+    async def read_status_fast(self) -> MotorStatus:
+        """Two transactions instead of four: one block 0x1003..0x1015 (status +
+        position) and the alarm word. Velocity is not read (UI uses `running`)."""
+        try:
+            blk = await self.modbus.read_holding_registers(self.slave_id, MOTION_STATUS, 19)
+            alarm_regs = await self.modbus.read_holding_registers(self.slave_id, CURRENT_ALARM, 1)
+        except Exception:
+            return {
+                "position_deg": 0.0, "position_pulses": 0, "velocity_rpm": 0,
+                "running": False, "enabled": False, "estopped": False,
+                "alarm": 0, "status_bits": 0, "offline": True,
+            }
+        status = blk[0]
+        off = FEEDBACK_POS_H - MOTION_STATUS
+        raw_pulses = join_32_signed(blk[off], blk[off + 1])
+        return {
+            "position_deg": round(self.pulses_to_deg(raw_pulses), 2),
+            "position_pulses": raw_pulses,
+            "velocity_rpm": 0,
+            "running": bool(status & STATUS_RUNNING),
+            "enabled": bool(status & (STATUS_CMD_OK | STATUS_PATH_OK | STATUS_RUNNING)),
+            "estopped": False,
+            "alarm": alarm_regs[0],
+            "status_bits": status,
+            "offline": False,
+        }
+
     async def test_connection(self) -> dict:
         try:
             regs = await self.modbus.read_holding_registers(self.slave_id, MOTION_STATUS, 1)
