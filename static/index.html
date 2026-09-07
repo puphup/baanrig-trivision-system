@@ -385,7 +385,6 @@
 
       <div class="focus-stats">
         <div class="stat"><div class="stat-label">Position</div><div class="stat-value" id="focus-pos">—</div></div>
-        <div class="stat"><div class="stat-label">Velocity</div><div class="stat-value" id="focus-vel">—</div></div>
         <div class="stat"><div class="stat-label">Status</div><div class="stat-value" id="focus-status">—</div></div>
         <div class="stat"><div class="stat-label">Alarm</div><div class="stat-value" id="focus-alarm">—</div></div>
       </div>
@@ -553,7 +552,7 @@ function onStatus(data) {
   lastData = data;
   if (!mapInv) loadMotors();
   updateMap(data);
-  renderCabinetStrip(data);
+  updateCabinetStrip(data);
   updateHoming(data.homing);
   if (V('tab-cabinets').classList.contains('active')) updateCabinetCounts(data);
   renderFocus(data);
@@ -623,6 +622,7 @@ async function loadMotors() {
   try {
     mapInv = await get('motors');
     renderMap();
+    renderCabinetStrip();
     const mo = mapInv.motion || {};
     if (mo.speed) V('show-speed').value = mo.speed;
     if (mo.accel != null) V('show-accel').value = mo.accel;
@@ -638,8 +638,8 @@ async function loadMotors() {
 
 function renderMap() {
   const svg = V('wall-map');
-  const ms = (mapInv && mapInv.motors) || [];
-  svg.innerHTML = ms.filter(m => m.x != null).map(m => `
+  const ms = ((mapInv && mapInv.motors) || []).filter(m => m.x != null);
+  svg.innerHTML = ms.map(m => `
     <g class="prism" data-key="${m.motor_key}" data-cab="${m.cabinet}" data-face="0"
        transform="translate(${m.x} ${m.y}) rotate(${(m.apex_deg || 0) + 90})"
        onclick="selectMotor('${m.motor_key}')">
@@ -668,23 +668,33 @@ function updateMap(d) {
   }
 }
 
-// ponytail: rebuilds all 11 buttons via innerHTML every tick — cheap at this
-// size; patch in place like updateMap if the cabinet count ever grows a lot.
-function renderCabinetStrip(d) {
+// Buttons are built once per inventory load (like the Cabinets tab rows);
+// per-tick updates only patch text + classes.
+function renderCabinetStrip() {
+  if (!mapInv) return;
+  V('cab-strip').innerHTML = mapInv.cabinets.map(c =>
+    `<button type="button" class="cab-btn" id="cab-btn-${c.cabinet}" onclick="toggleCabinetHighlight(${c.cabinet})" title="${c.active_host}">Cab ${c.cabinet}</button>`
+  ).join('');
+  updateCabinetStrip(lastData);
+}
+
+function updateCabinetStrip(d) {
   if (!mapInv) return;
   const motors = d.motors || {};
-  V('cab-strip').innerHTML = mapInv.cabinets.map(c => {
+  mapInv.cabinets.forEach(c => {
+    const btn = V(`cab-btn-${c.cabinet}`);
+    if (!btn) return;
     const sts = c.motor_keys.map(k => motors[k] || { offline: true });
     const online = sts.filter(s => !s.offline).length;
     const alarm = sts.some(s => !s.offline && s.alarm);
-    const cls = ['cab-btn', online === 0 ? 'offline' : '', alarm ? 'alarm' : '', highlightCab === c.cabinet ? 'active' : ''].join(' ');
-    return `<button type="button" class="${cls}" onclick="toggleCabinetHighlight(${c.cabinet})" title="${c.active_host}">Cab ${c.cabinet} · ${online}/${c.motor_keys.length}</button>`;
-  }).join('');
+    btn.textContent = `Cab ${c.cabinet} · ${online}/${c.motor_keys.length}`;
+    btn.className = ['cab-btn', online === 0 ? 'offline' : '', alarm ? 'alarm' : '', highlightCab === c.cabinet ? 'active' : ''].join(' ');
+  });
 }
 
 function toggleCabinetHighlight(n) {
   highlightCab = (highlightCab === n) ? null : n;
-  updateMap(lastData); renderCabinetStrip(lastData);
+  updateMap(lastData); updateCabinetStrip(lastData);
 }
 
 function updateHoming(h) {
@@ -740,7 +750,6 @@ function renderFocus(d) {
     V('focus-label').textContent = '— no selection —';
     V('focus-sub').textContent = 'click any motor tile below to control it';
     V('focus-pos').textContent = '—';
-    V('focus-vel').textContent = '—';
     V('focus-status').textContent = '—';
     V('focus-alarm').textContent = '—';
     V('focus-dots').innerHTML = '';
@@ -751,7 +760,6 @@ function renderFocus(d) {
     V('focus-sub').textContent = `${inv.motor_key} · ${inv.driver_type}` + (m.offline ? ' · OFFLINE' : '');
     V('diag-label').textContent = inv.label;
     V('focus-pos').textContent = (m.position_deg != null) ? `${m.position_deg.toFixed(2)}°` : '—';
-    V('focus-vel').textContent = (m.velocity_rpm != null) ? `${m.velocity_rpm} rpm` : '—';
     const flags = [];
     if (m.enabled) flags.push('Enabled');
     if (m.running) flags.push('Running');
@@ -974,7 +982,6 @@ function renderCabinets(d) {
   // (called from loadMotors after every mapInv (re)fetch). Per-tick updates
   // go through updateCabinetCounts() so an in-flight checkbox click / focus
   // never gets clobbered by a status tick.
-  if (!mapInv) return;
   V('mode-select').value = mapInv.mode || 'tcp';
   V('cab-rows').innerHTML = mapInv.cabinets.map(c => {
     const usingSpare = c.active_host === c.spare && !!c.spare;
@@ -1021,6 +1028,8 @@ async function setMode(mode) {
 
 async function doCommission(n) {
   if (!confirm(`Commission every drive in cabinet ${n}? Only for fresh drives. You must power-cycle the cabinet afterwards.`)) return;
+  // 21 drives × EEPROM saves — say something before the long await.
+  V('commission-out').textContent = `Commissioning cabinet ${n}… (this takes a minute or two)`;
   const r = await api('commission', { cabinet: n });
   const failed = r.failed || [];
   const lines = [`Cabinet ${n}: done ${r.done} / total ${r.total}`];
