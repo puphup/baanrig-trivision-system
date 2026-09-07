@@ -66,11 +66,27 @@ def main() -> None:
              "normal web-server launch. iCL-RS drives only; other "
              "motor types in the config are untouched.",
     )
+    p.add_argument(
+        "--setup-iclrs-home",
+        action="store_true",
+        help="One-time iCL-RS commissioning: DI3 = home switch (N.O.), homing "
+             "mode = home switch, saved to EEPROM. Power-cycle the drive afterwards. "
+             "Add --home-nc for a normally-closed switch, --home-cw to flip direction.",
+    )
+    p.add_argument("--home-nc", action="store_true", help="home switch is normally-closed")
+    p.add_argument("--home-cw", action="store_true", help="flip homing direction")
+    p.add_argument("--motor", metavar="KEY", help="only commission this motor key, e.g. gw4.1 (default: every iCL-RS)")
     args = p.parse_args()
 
     if args.setup_iclrs_enable:
-        touched = asyncio.run(run_iclrs_setup())
+        touched = asyncio.run(run_iclrs_setup(only=args.motor))
         print(f"[setup] reconfigured {touched} iCL-RS drive(s)")
+        return
+    if args.setup_iclrs_home:
+        touched = asyncio.run(run_iclrs_setup(
+            "configure_home_switch", only=args.motor,
+            normally_closed=args.home_nc, direction_cw=args.home_cw))
+        print(f"[setup] home switch configured on {touched} iCL-RS drive(s) — power-cycle them now")
         return
 
     cfg = load_config()

@@ -10,6 +10,10 @@ from ..registers import (
     SW_ENABLE_REG, SW_ENABLE_VAL,
     SET_ORIGIN_REG, SET_ORIGIN_VAL,
     DI1_FUNC_REG, DI1_FUNC_INVALID,
+    DI3_FUNC_REG, DI_FUNC_HOME_SWITCH, DI_FUNC_NC_BIT,
+    HOMING_MODE_REG, HOMING_BY_HOME_SWITCH, HOMING_DIR_BIT,
+    HOMING_VEL_HIGH_REG, HOMING_VEL_LOW_REG, HOMING_ACC_REG, HOMING_DEC_REG,
+    HOMING_TRIGGER_VAL,
     MODE_ABSOLUTE, MODE_RELATIVE,
     STATUS_RUNNING, STATUS_CMD_OK, STATUS_PATH_OK,
     CMD_FILTER_REG, COMMAND_FILTER_MS, CMD_FILTER_MAX_REG,
@@ -85,6 +89,39 @@ class ICLRSDriver(MotorDriver):
         except Exception as e:
             after = f"read err: {e}"
         print(f"[iCL-RS sid={sid}] Pr4.02 after  = {after} (saved)")
+
+    async def configure_home_switch(self, normally_closed: bool = False,
+                                    direction_cw: bool = False,
+                                    high_rpm: int = 10, low_rpm: int = 2,
+                                    acc_ms: int = 200) -> None:
+        """One-time commissioning: DI3 = home switch (ORG), homing by home
+        switch at *high_rpm* then *low_rpm*, persisted to EEPROM.
+
+        The DI change only becomes live after a drive POWER-CYCLE. iCL-RS only.
+        Idempotent. ponytail: calibration knobs — flip direction_cw if the
+        motor seeks away from the switch; the manual is inconsistent on bit0.
+        """
+        sid = self.slave_id
+        di = DI_FUNC_HOME_SWITCH | (DI_FUNC_NC_BIT if normally_closed else 0)
+        mode = HOMING_BY_HOME_SWITCH | (HOMING_DIR_BIT if direction_cw else 0)
+        await self.modbus.write_registers(sid, DI3_FUNC_REG, [di])
+        await self.modbus.write_registers(sid, HOMING_MODE_REG, [mode])
+        await self.modbus.write_registers(sid, HOMING_VEL_HIGH_REG, [int(high_rpm)])
+        await self.modbus.write_registers(sid, HOMING_VEL_LOW_REG, [int(low_rpm)])
+        await self.modbus.write_registers(sid, HOMING_ACC_REG, [int(acc_ms)])
+        await self.modbus.write_registers(sid, HOMING_DEC_REG, [int(acc_ms)])
+        await self.save_params()
+        try:
+            back = await self.modbus.read_holding_registers(sid, DI3_FUNC_REG, 1)
+            mode_back = await self.modbus.read_holding_registers(sid, HOMING_MODE_REG, 1)
+            print(f"[iCL-RS sid={sid}] Pr4.04=0x{back[0]:04X} Pr8.10=0x{mode_back[0]:04X} (saved; power-cycle drive)")
+        except Exception as e:
+            print(f"[iCL-RS sid={sid}] readback failed: {e}")
+
+    async def seek_home(self) -> None:
+        """Run the drive's homing routine (0x20 → 0x6002): seeks the switch
+        configured by :meth:`configure_home_switch`, then zeroes there."""
+        await self.modbus.write_registers(self.slave_id, ESTOP_REG, [HOMING_TRIGGER_VAL])
 
     async def enable(self) -> None:
         """Energize / hold the shaft.

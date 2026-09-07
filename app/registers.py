@@ -50,6 +50,25 @@ SW_ENABLE_VAL = 1
 DI1_FUNC_REG     = 0x0145
 DI1_FUNC_INVALID = 0x0000
 
+# Home switch on DI3 (Pr4.04). 0x27 = ORG normally-open, 0xA7 = normally-closed.
+# Like every DI-function change it only takes effect after an EEPROM save AND a
+# drive power-cycle (manual 4.3.2 note 2).
+DI3_FUNC_REG        = 0x0149
+DI_FUNC_HOME_SWITCH = 0x0027
+DI_FUNC_NC_BIT      = 0x0080
+# Homing (Pr8.10-8.18). Pr8.10 bit0 = direction, bit1 = go to Pr8.13 after
+# homing, bit2 = 1 → home-switch homing (0 = limit-switch). Velocities in rpm,
+# acc/dec in ms per 1000 rpm. Trigger = write 0x20 to 0x6002 (0x21 is manual
+# set-zero, used by SET_ORIGIN_VAL — don't confuse the two).
+HOMING_MODE_REG       = 0x600A
+HOMING_BY_HOME_SWITCH = 0x0004
+HOMING_DIR_BIT        = 0x0001
+HOMING_VEL_HIGH_REG   = 0x600F
+HOMING_VEL_LOW_REG    = 0x6010
+HOMING_ACC_REG        = 0x6011
+HOMING_DEC_REG        = 0x6012
+HOMING_TRIGGER_VAL    = 0x0020
+
 # Command filter — rounds the linear accel/decel ramp into an S-curve so the
 # motor doesn't jolt at the end of a move. Register unit is 0.1 ms; we write
 # round(COMMAND_FILTER_MS * 10). Drive applies the filter to position commands.

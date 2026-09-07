@@ -486,6 +486,7 @@
             <button type="button" onclick="doHome()">Home</button>
             <button type="button" onclick="doSetZero()" title="Software display offset only">Set Zero</button>
             <button type="button" onclick="doSetHome()" title="Store current position as drive origin, saved to EEPROM">Set Home</button>
+            <button type="button" onclick="doSeekHome()" title="Run the drive's homing routine to the DI3 home switch (iCL-RS, after --setup-iclrs-home)">Seek Home</button>
             <button type="button" class="btn-warning" onclick="doAlarmReset()">Reset Alarm</button>
           </div>
         </div>
@@ -919,6 +920,7 @@ function doEnable()   { if (selectedKey) api('enable',   { motor_key: selectedKe
 function doDisable()  { if (selectedKey) api('disable',  { motor_key: selectedKey }); }
 function doHome()     { if (selectedKey) api('home',     { motor_key: selectedKey, speed_rpm: 10, accel: 200, decel: 200 }); }
 function doSetZero()  { if (selectedKey) api('set-zero', { motor_key: selectedKey }); }
+function doSeekHome() { if (selectedKey) { api('seek-home', { motor_key: selectedKey }); showToast(`Seek Home: ${selectedKey} homing to switch…`, 'success'); } }
 function doSetHome()  { if (selectedKey) { api('set-home', { motor_key: selectedKey }); showToast(`Set Home: ${selectedKey} origin saved to drive.`, 'success'); } }
 async function doSetHomeAll() { bulkToast('Set Home All', await api('set-home', {}), '(saved to EEPROM; show reset to face 1)'); }
 function doAlarmReset(){ if (selectedKey) api('alarm-reset', { motor_key: selectedKey }); }

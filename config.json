@@ -259,6 +259,11 @@
       "gateway": "gw3",
       "slave_id": 14,
       "driver_type": "tl_r"
+    },
+    {
+      "gateway": "gw4",
+      "slave_id": 1,
+      "driver_type": "icl_rs"
     }
   ],
   "server": {
@@ -281,6 +286,11 @@
       "id": "gw3",
       "host": "192.168.10.203",
       "port": 502
+    },
+    {
+      "id": "gw4",
+      "host": "/dev/cu.usbserial-2140",
+      "port": 115200
     }
   ],
   "motor_defaults": {

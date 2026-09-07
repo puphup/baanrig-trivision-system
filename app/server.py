@@ -29,7 +29,7 @@ from .drivers import (
     MotorDriver, DRIVER_CATALOG,
     make_hardware_driver, make_sim_driver,
 )
-from .modbus_interface import ModbusInterface, SimulatedModbus, TcpModbus
+from .modbus_interface import ModbusInterface, SimulatedModbus, TcpModbus, RealModbus
 from .motor_sim import MotorSim
 from .sequencer import MultiMotorSequencer, MotorStep
 from .show import (
@@ -99,7 +99,14 @@ async def _build_runtime(cfg: dict):
         # the drivers self-heal/reconnect on first use anyway. A sequential
         # connect to an unreachable gateway would stall startup for seconds.
         gws = cfg.get("gateways", [])
-        clients = {gw["id"]: TcpModbus(host=gw["host"], port=int(gw["port"])) for gw in gws}
+        # ponytail: a gateway whose host looks like a serial device (/dev/…, COMn)
+        # is a direct USB-RS485 link; its "port" field is then the baudrate.
+        def _client(gw):
+            h = gw["host"]
+            if h.startswith("/dev/") or h.upper().startswith("COM"):
+                return RealModbus(port=h, baudrate=int(gw["port"]))
+            return TcpModbus(host=h, port=int(gw["port"]))
+        clients = {gw["id"]: _client(gw) for gw in gws}
         async def _try_connect(c):
             try:
                 await c.connect()
@@ -167,11 +174,11 @@ async def _reload_runtime():
         await show.set_current_page(1)
 
 
-async def run_iclrs_setup() -> int:
-    """One-time iCL-RS commissioning: hand enable control to software.
+async def run_iclrs_setup(method: str = "configure_software_enable", only: str | None = None, **kw) -> int:
+    """One-time iCL-RS commissioning (default: hand enable control to software).
 
-    Builds the runtime from the current config, calls
-    :meth:`ICLRSDriver.configure_software_enable` on every iCL-RS driver
+    Builds the runtime from the current config, calls ``ICLRSDriver.<method>``
+    (``configure_software_enable`` or ``configure_home_switch``) on every iCL-RS driver
     (silently skipping anything else), then tears the runtime down. Returns
     the count of drives that were reconfigured.
 
@@ -190,11 +197,11 @@ async def run_iclrs_setup() -> int:
     try:
         touched = 0
         for key, d in drivers.items():
-            if not isinstance(d, ICLRSDriver):
+            if not isinstance(d, ICLRSDriver) or (only and key != only):
                 continue
-            print(f"[setup] reconfiguring {key} for software enable …")
+            print(f"[setup] {key}: {method} …")
             try:
-                await d.configure_software_enable()
+                await getattr(d, method)(**kw)
                 touched += 1
             except Exception as e:
                 print(f"[setup] {key} failed: {e}")
@@ -446,6 +453,42 @@ async def home_motor(req: HomeRequest):
     if not req.motor_key:
         await show.set_current_page(1)
     return {"ok": True, "total": len(targets), "done": len(targets) - len(failed), "failed": failed}
+
+
+@app.post("/api/seek-home")
+async def seek_home(req: MotorKeyRequest):
+    """Run the drive's own homing routine toward the DI3 home switch
+    (iCL-RS only, after --setup-iclrs-home). Sets the drive origin at the switch."""
+    if sequencer.active:
+        return {"error": "Sequence in progress"}
+    failed = []
+    targets = _resolve_targets(req.motor_key)
+    for key in targets:
+        d = drivers[key]
+        try:
+            if not hasattr(d, "seek_home"):
+                raise TypeError("no home-switch homing on this driver")
+            await d.seek_home()
+            asyncio.create_task(_zero_display_after_homing(key, d))
+        except Exception as e:
+            failed.append({"motor_key": key, "error": str(e)[:80]})
+    return {"ok": True, "total": len(targets), "done": len(targets) - len(failed), "failed": failed}
+
+
+async def _zero_display_after_homing(key: str, d: MotorDriver) -> None:
+    """Homing zeroes the drive's origin but not the absolute counter the UI
+    shows (same quirk as Set Home), so once the motor stops, capture the
+    software offset so the tile reads 0 at the switch."""
+    await asyncio.sleep(1.0)
+    for _ in range(240):                      # ponytail: 2 min cap
+        try:
+            st = await d.read_status()
+            if not st.get("running") and not st.get("offline"):
+                zero_offsets[key] = int(st.get("position_pulses", 0))
+                return
+        except Exception:
+            pass
+        await asyncio.sleep(0.5)
 
 
 @app.post("/api/set-zero")
@@ -718,6 +761,38 @@ async def debug_status(motor_key: str):
         }
     except Exception as e:
         return {"error": str(e)}
+
+
+@app.get("/api/reg/{motor_key}/{addr}")
+async def read_reg(motor_key: str, addr: str, count: int = 1):
+    """Raw holding-register read for bench checks, e.g. /api/reg/gw4.1/0x602E
+    (Pr8.46 digital inputs — watch it flip while you trigger the home sensor)."""
+    d = drivers.get(motor_key)
+    if d is None or not hasattr(d, "modbus"):
+        return {"error": "unknown or simulated motor"}
+    a = int(addr, 0)
+    regs = await d.modbus.read_holding_registers(d.slave_id, a, count)
+    return {"addr": f"0x{a:04X}", "values": regs, "hex": [f"0x{v:04X}" for v in regs], "bin": [f"{v:016b}" for v in regs]}
+
+
+class RegWrite(BaseModel):
+    values: list[int]
+    save: bool = False
+
+
+@app.post("/api/reg/{motor_key}/{addr}")
+async def write_reg(motor_key: str, addr: str, req: RegWrite):
+    """Raw holding-register write for bench tuning (e.g. homing speeds
+    0x600F/0x6010). save=true also persists to EEPROM."""
+    d = drivers.get(motor_key)
+    if d is None or not hasattr(d, "modbus"):
+        return {"error": "unknown or simulated motor"}
+    a = int(addr, 0)
+    await d.modbus.write_registers(d.slave_id, a, [int(v) & 0xFFFF for v in req.values])
+    if req.save:
+        await d.save_params()
+    regs = await d.modbus.read_holding_registers(d.slave_id, a, len(req.values))
+    return {"addr": f"0x{a:04X}", "values": regs, "saved": req.save}
 
 
 @app.get("/api/config")
