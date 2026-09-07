@@ -155,51 +155,6 @@
     display: flex; gap: 8px; align-items: center; margin-bottom: 10px;
   }
   .grid-toolbar input[type="search"] { max-width: 260px; }
-  .motor-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 8px;
-  }
-  .tile {
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 6px; padding: 8px 9px; cursor: pointer;
-    transition: border-color 0.1s, background 0.1s;
-    position: relative;
-  }
-  .tile:hover { background: var(--surface3); }
-  /* Gateway colour band on the left edge — quick visual grouping in the grid. */
-  .tile { border-left-width: 3px; }
-  .tile[data-gw="gw1"] { border-left-color: #5b8def; }   /* blue   */
-  .tile[data-gw="gw2"] { border-left-color: #34d399; }   /* green  */
-  .tile[data-gw="gw3"] { border-left-color: #f59e0b; }   /* orange */
-  .tile[data-gw="gw4"] { border-left-color: #a78bfa; }   /* purple */
-  .tile[data-gw="gw5"] { border-left-color: #f43f5e; }   /* rose   */
-  .tile[data-gw="gw6"] { border-left-color: #14b8a6; }   /* teal   */
-  .tile[data-gw="gw7"] { border-left-color: #fbbf24; }   /* amber  */
-  .tile[data-gw="gw8"] { border-left-color: #ec4899; }   /* pink   */
-  .tile.selected {
-    border-color: var(--accent);
-    background: var(--surface3);
-    box-shadow: 0 0 0 2px var(--accent), 0 0 16px rgba(91,141,239,0.45);
-    z-index: 1;
-  }
-  .tile.selected::after {
-    content: '●';
-    position: absolute; top: 4px; right: 6px;
-    color: var(--accent); font-size: 0.6rem;
-  }
-  .tile.offline { opacity: 0.5; }
-  .tile .t-head {
-    display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;
-  }
-  .tile .t-name { font-size: 0.72rem; font-weight: 600; }
-  .tile .t-type { font-size: 0.55rem; color: var(--text-dim); }
-  .tile .t-pos { font-size: 0.95rem; font-weight: 700; line-height: 1.0; }
-  .tile .t-vel { font-size: 0.62rem; color: var(--text-dim); margin-top: 2px; }
-  .tile .t-foot {
-    display: flex; align-items: center; gap: 6px; margin-top: 5px;
-  }
-  .tile .t-dots { display: flex; gap: 4px; }
   /* Per-tile face indicator — small pill showing which face of the prism is
      currently displayed. Colour-coded so the operator can scan the array. */
   .face-badge {
@@ -211,8 +166,6 @@
   .face-badge.f1 { color: #fff; background: #5b8def; border-color: #5b8def; }   /* blue  */
   .face-badge.f2 { color: #111; background: #34d399; border-color: #34d399; }   /* green */
   .face-badge.f3 { color: #111; background: #facc15; border-color: #facc15; }   /* yellow */
-  /* When a tile's face matches the show controller's target page, halo it. */
-  .tile.face-target { box-shadow: 0 0 0 1px var(--accent) inset; }
   .dot {
     width: 8px; height: 8px; border-radius: 50%; background: var(--surface3);
     border: 1px solid var(--border);
@@ -337,11 +290,15 @@
   .prism[data-face="2"] polygon { fill:#22c55e; }
   .prism[data-face="3"] polygon { fill:#f59e0b; }
   .prism.offline polygon { fill:#333; stroke:#666; }
-  .prism.moving polygon { stroke:#fbbf24; stroke-width:4; }
-  .prism.alarm polygon { stroke:#ef4444; stroke-width:4; }
-  .prism.selected polygon { stroke:#fff; stroke-width:5; }
+  /* .selected is declared first and is the ONLY rule that sets stroke-width,
+     so a selected prism is always visibly thicker no matter what else is
+     true of it. .moving/.alarm set stroke colour only, so they still win the
+     colour cascade (declared later, same specificity) without the width
+     ever masking the selection ring — no higher-specificity trick needed. */
+  .prism.selected polygon { stroke:var(--accent); stroke-width:6; }
+  .prism.moving polygon { stroke:#fbbf24; }
+  .prism.alarm polygon { stroke:#ef4444; }
   .prism.dim polygon { opacity:.25; }
-  .prism text { font-size:11px; fill:#ddd; text-anchor:middle; pointer-events:none; }
   .legend { font-size:.68rem; color:var(--text-dim); display:flex; gap:8px; align-items:center; }
   .legend .sw { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:3px; }
   .legend .f1 { background:#3b82f6 } .legend .f2 { background:#22c55e } .legend .f3 { background:#f59e0b }
@@ -755,16 +712,26 @@ function updateEnableAllButton(d) {
 
 let mapInv = null;           // GET /api/motors
 let highlightCab = null;
+let loadingMotors = false;   // ponytail: in-flight guard — onStatus retries every tick
+                             // (4/s) while mapInv is null, so a failing fetch must not pile up.
 
 async function loadMotors() {
-  mapInv = await get('motors');
-  renderMap();
-  const mo = mapInv.motion || {};
-  if (mo.speed) V('show-speed').value = mo.speed;
-  if (mo.accel != null) V('show-accel').value = mo.accel;
-  if (mo.decel != null) V('show-decel').value = mo.decel;
-  if (mo.step_ms != null) V('show-step').value = mo.step_ms;
-  if (typeof renderCabinets === 'function') renderCabinets(lastData);
+  if (loadingMotors) return;
+  loadingMotors = true;
+  try {
+    mapInv = await get('motors');
+    renderMap();
+    const mo = mapInv.motion || {};
+    if (mo.speed) V('show-speed').value = mo.speed;
+    if (mo.accel != null) V('show-accel').value = mo.accel;
+    if (mo.decel != null) V('show-decel').value = mo.decel;
+    if (mo.step_ms != null) V('show-step').value = mo.step_ms;
+    if (typeof renderCabinets === 'function') renderCabinets(lastData);
+  } catch {
+    mapInv = null;   // leave null so the next onStatus tick retries
+  } finally {
+    loadingMotors = false;
+  }
 }
 
 function renderMap() {
@@ -778,6 +745,9 @@ function renderMap() {
       <title>${m.label} · Cab ${m.cabinet} · ID ${m.slave_id}</title>
     </g>`).join('');
   V('grid-count').textContent = `${ms.length} motors`;
+  if (ms.length && (!selectedKey || !ms.find(m => m.motor_key === selectedKey))) {
+    selectMotor(ms[0].motor_key);
+  }
 }
 
 function updateMap(d) {
@@ -796,6 +766,8 @@ function updateMap(d) {
   }
 }
 
+// ponytail: rebuilds all 11 buttons via innerHTML every tick — cheap at this
+// size; patch in place like updateMap if the cabinet count ever grows a lot.
 function renderCabinetStrip(d) {
   if (!mapInv) return;
   const motors = d.motors || {};
