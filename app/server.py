@@ -11,10 +11,12 @@ on different gateways doesn't collide.
 
 import asyncio
 import os
+import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -51,6 +53,8 @@ zero_offsets: dict[str, int] = {}
 # Latest raw status per motor key, written by the per-cabinet pollers.
 status_cache: dict[str, dict] = {}
 _poll_tasks: list[asyncio.Task] = []
+# The in-flight seek-home run: the wall task + its per-motor display-zero tasks.
+_home_tasks: list[asyncio.Task] = []
 # Progress of the in-flight /api/seek-home run (single run at a time).
 homing_state: dict = {"active": False, "total": 0, "done": 0, "failed": []}
 
@@ -173,6 +177,7 @@ async def _reload_runtime():
             sequencer.cancel()
         # Cancel any running auto-cycle; its drivers map is about to be replaced.
         await show.stop_auto()
+        await _stop_homing()
         await _stop_pollers()
         await _teardown_runtime()
         new_g, new_d, new_s = await _build_runtime(config)
@@ -228,9 +233,12 @@ async def _reconnect_loop():
     gateways instantly), so reconnection has to happen here instead. A missing
     gateway therefore costs the UI nothing — its motors just show offline until
     this loop dials it back, while the healthy gateways keep updating at full
-    speed."""
+    speed.
+
+    Only TCP gateways are redialled: a ``RealModbus`` (direct USB-RS485) link is
+    intentionally left alone — a yanked adapter needs a human, not a retry loop."""
     while True:
-        await asyncio.sleep(3.0)
+        await asyncio.sleep(5.0)
         clients = [c for c in gateways.values()
                    if isinstance(c, TcpModbus) and not c.connected]
         if not clients:
@@ -247,10 +255,20 @@ async def _reconnect_loop():
 async def _poll_cabinet(keys: list[str]) -> None:
     """Continuously read every motor on one bus into status_cache. Buses run in
     their own task so a slow/offline cabinet never delays the others."""
-    # ponytail: tcp polls back-to-back with no pacing; add a minimum
-    # inter-cycle delay if a bus saturates.
+    # ponytail: a healthy tcp bus polls back-to-back (no pacing); only a cycle
+    # that got no successful read backs off, so a down cabinet can't spin hot.
     interval = 0.1 if config.get("mode") != "tcp" else 0.0
+    gw_id = keys[0].rsplit(".", 1)[0] if keys else ""
     while True:
+        client = gateways.get(gw_id)
+        if isinstance(client, TcpModbus) and not client.connected:
+            # Whole cabinet is down — mark it offline in one pass instead of
+            # burning 21 doomed transactions per cycle. _reconnect_loop redials.
+            for key in keys:
+                status_cache[key] = dict(_OFFLINE_ST)
+            await asyncio.sleep(1.0)
+            continue
+        ok = 0
         for key in keys:
             d = drivers.get(key)
             if d is None:
@@ -259,9 +277,11 @@ async def _poll_cabinet(keys: list[str]) -> None:
                 st = await d.read_status_fast()
             except Exception:
                 st = dict(_OFFLINE_ST)
+            if not st.get("offline"):
+                ok += 1
             status_cache[key] = st
             await asyncio.sleep(0)
-        await asyncio.sleep(interval)
+        await asyncio.sleep(interval if ok else 0.25)
 
 
 async def _start_pollers() -> None:
@@ -282,6 +302,19 @@ async def _stop_pollers() -> None:
     status_cache.clear()
 
 
+async def _stop_homing() -> None:
+    """Cancel an in-flight seek-home run and clear its progress. The drivers it
+    was homing are about to be replaced (or the app is shutting down), so
+    ``homing_state["active"]`` must not survive."""
+    tasks = list(_home_tasks)
+    for t in tasks:
+        t.cancel()
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
+    _home_tasks.clear()
+    homing_state.update({"active": False, "total": 0, "done": 0, "failed": []})
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global config, gateways, drivers, sim_motors, sequencer
@@ -291,6 +324,11 @@ async def lifespan(app: FastAPI):
     drivers = new_d
     sim_motors = new_s
     sequencer = MultiMotorSequencer(drivers=drivers, motor_keys=list(drivers.keys()))
+    # Every modbus call runs in the default executor; the stock 32-thread pool
+    # would serialize 11 cabinets behind each other. Not recomputed on reload —
+    # the gateway count comes from the map, which a reload doesn't change.
+    asyncio.get_running_loop().set_default_executor(
+        ThreadPoolExecutor(max_workers=len(gateways) + 8))
     await _start_pollers()
 
     broadcast_task = asyncio.create_task(_broadcast_loop())
@@ -298,6 +336,7 @@ async def lifespan(app: FastAPI):
     yield
     broadcast_task.cancel()
     reconnect_task.cancel()
+    await _stop_homing()
     await _stop_pollers()
     await _teardown_runtime()
 
@@ -504,8 +543,8 @@ async def home_motor(req: HomeRequest):
     targets = _resolve_targets(req.motor_key)
     failed = []
     for key in targets:
-        d = drivers[key]
         try:
+            d = drivers[key]     # inside the try: a reload mid-loop fails one motor
             st = await d.read_status()
             raw = int(st.get("position_pulses", 0))
             display_deg = d.pulses_to_deg(raw - zero_offsets.get(key, 0))
@@ -530,6 +569,8 @@ async def seek_home(req: SeekHomeRequest):
         targets = _resolve_targets(req.motor_key)
     elif req.cabinet is not None:
         targets = _keys_for_cabinet(req.cabinet)
+        if not targets:
+            raise HTTPException(status_code=404, detail=f"unknown cabinet {req.cabinet}")
     else:
         targets = list(drivers.keys())
     whole_wall = not req.motor_key and req.cabinet is None
@@ -537,22 +578,27 @@ async def seek_home(req: SeekHomeRequest):
     by_gw: dict[str, list[str]] = {}
     for k in targets:
         by_gw.setdefault(k.rsplit(".", 1)[0], []).append(k)
-    asyncio.create_task(_seek_home_wall(list(by_gw.values()), whole_wall))
+    _home_tasks.clear()          # one run at a time; the last run's tasks are done
+    _home_tasks.append(asyncio.create_task(_seek_home_wall(list(by_gw.values()), whole_wall)))
     return {"ok": True, "total": len(targets)}
 
 
 async def _seek_home_cabinet(keys: list[str]) -> None:
     zero_tasks = []
-    for key in keys:
-        d = drivers[key]
+    for i, key in enumerate(keys):
         try:
+            d = drivers[key]     # a reload mid-loop must fail this motor, not the run
             if not hasattr(d, "seek_home"):
                 raise TypeError("no home-switch homing on this driver")
             await d.seek_home()
-            zero_tasks.append(asyncio.create_task(_zero_display_after_homing(key, d)))
+            t = asyncio.create_task(_zero_display_after_homing(key))
+            zero_tasks.append(t)
+            _home_tasks.append(t)
         except Exception as e:
             homing_state["failed"].append({"motor_key": key, "error": str(e)[:80]})
-        await asyncio.sleep(0.2)
+            homing_state["done"] += 1    # a failed motor is still "finished"
+        if i < len(keys) - 1:
+            await asyncio.sleep(0.2)
     for t in zero_tasks:
         await t
         homing_state["done"] += 1
@@ -567,19 +613,20 @@ async def _seek_home_wall(groups: list[list[str]], whole_wall: bool) -> None:
         homing_state["active"] = False
 
 
-async def _zero_display_after_homing(key: str, d: MotorDriver) -> None:
+async def _zero_display_after_homing(key: str) -> None:
     """Homing zeroes the drive's origin but not the absolute counter the UI
     shows (same quirk as Set Home), so once the motor stops, capture the
-    software offset so the tile reads 0 at the switch."""
+    software offset so the tile reads 0 at the switch.
+
+    Reads the poller cache, never the bus: 231 of these watchers each doing
+    their own read_status() would saturate every gateway for the whole run."""
     await asyncio.sleep(1.0)
-    for _ in range(240):                      # ponytail: 2 min cap
-        try:
-            st = await d.read_status()
-            if not st.get("running") and not st.get("offline"):
-                zero_offsets[key] = int(st.get("position_pulses", 0))
-                return
-        except Exception:
-            pass
+    deadline = time.monotonic() + 120.0       # ponytail: give up after 2 min
+    while time.monotonic() < deadline:
+        st = status_cache.get(key)
+        if st and not st.get("running") and not st.get("offline"):
+            zero_offsets[key] = int(st.get("position_pulses", 0))
+            return
         await asyncio.sleep(0.5)
 
 
@@ -589,10 +636,12 @@ async def commission(req: CabinetRequest):
     switch (N.O.), homing speeds 3/1 rpm, EEPROM save. Power-cycle after."""
     from .drivers.icl_rs import ICLRSDriver
     targets = _keys_for_cabinet(req.cabinet)
+    if not targets:
+        raise HTTPException(status_code=404, detail=f"unknown cabinet {req.cabinet}")
     failed = []
     for key in targets:
-        d = drivers[key]
         try:
+            d = drivers[key]     # inside the try: a reload mid-loop fails one motor
             if not isinstance(d, ICLRSDriver):
                 raise TypeError("not an iCL-RS drive (simulated?)")
             await d.configure_software_enable()
@@ -607,8 +656,8 @@ async def set_zero(req: MotorKeyRequest):
     targets = _resolve_targets(req.motor_key)
     failed = []
     for key in targets:
-        d = drivers[key]
         try:
+            d = drivers[key]     # inside the try: a reload mid-loop fails one motor
             if key in sim_motors:
                 sim_motors[key].position = 0.0
                 zero_offsets[key] = 0
@@ -632,8 +681,8 @@ async def set_home(req: MotorKeyRequest):
     targets = _resolve_targets(req.motor_key)
     failed = []
     for key in targets:
-        d = drivers[key]
         try:
+            d = drivers[key]     # inside the try: a reload mid-loop fails one motor
             await d.set_home()
         except Exception as e:
             failed.append({"motor_key": key, "error": str(e)[:80]})
@@ -886,6 +935,14 @@ async def debug_status(motor_key: str):
         return {"error": str(e)}
 
 
+def _parse_addr(addr: str) -> int:
+    """'0x602E' / '24622' → int. A typo is a bad request, not a 500."""
+    try:
+        return int(addr, 0)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail=f"bad register address {addr!r} (use 0x602E or 24622)")
+
+
 @app.get("/api/reg/{motor_key}/{addr}")
 async def read_reg(motor_key: str, addr: str, count: int = 1):
     """Raw holding-register read for bench checks, e.g. /api/reg/gw4.1/0x602E
@@ -893,7 +950,7 @@ async def read_reg(motor_key: str, addr: str, count: int = 1):
     d = drivers.get(motor_key)
     if d is None or not hasattr(d, "modbus"):
         return {"error": "unknown or simulated motor"}
-    a = int(addr, 0)
+    a = _parse_addr(addr)
     regs = await d.modbus.read_holding_registers(d.slave_id, a, count)
     return {"addr": f"0x{a:04X}", "values": regs, "hex": [f"0x{v:04X}" for v in regs], "bin": [f"{v:016b}" for v in regs]}
 
@@ -910,7 +967,7 @@ async def write_reg(motor_key: str, addr: str, req: RegWrite):
     d = drivers.get(motor_key)
     if d is None or not hasattr(d, "modbus"):
         return {"error": "unknown or simulated motor"}
-    a = int(addr, 0)
+    a = _parse_addr(addr)
     await d.modbus.write_registers(d.slave_id, a, [int(v) & 0xFFFF for v in req.values])
     if req.save:
         await d.save_params()
@@ -948,7 +1005,7 @@ async def update_config(new_cfg: dict):
         await _reload_runtime()
         return {"ok": True, "config": {k: config[k] for k in ("mode", "use_spare", "motion")}, "applied": True}
     except Exception as e:
-        return {"ok": True, "applied": False, "reload_error": str(e)}
+        return {"ok": False, "applied": False, "reload_error": str(e)}
 
 
 # ---------------------------------------------------------------------------

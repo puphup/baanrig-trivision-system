@@ -21,6 +21,14 @@ from ..registers import (
 )
 from .base import MotorDriver, MotorStatus
 
+# Shared "the bus read failed" status. Copy it (dict(OFFLINE_STATUS)) — callers
+# mutate what they get back.
+OFFLINE_STATUS: MotorStatus = {
+    "position_deg": 0.0, "position_pulses": 0, "velocity_rpm": 0,
+    "running": False, "enabled": False, "estopped": False,
+    "alarm": 0, "status_bits": 0, "offline": True,
+}
+
 
 class ICLRSDriver(MotorDriver):
     """Leadshine iCL-RS family. Move semantics: write PR0 block, then trigger."""
@@ -193,11 +201,7 @@ class ICLRSDriver(MotorDriver):
             vel_regs = await self.modbus.read_holding_registers(self.slave_id, FEEDBACK_VEL_H, 2)
             alarm_regs = await self.modbus.read_holding_registers(self.slave_id, CURRENT_ALARM, 1)
         except Exception:
-            return {
-                "position_deg": 0.0, "position_pulses": 0, "velocity_rpm": 0,
-                "running": False, "enabled": False, "estopped": False,
-                "alarm": 0, "status_bits": 0, "offline": True,
-            }
+            return dict(OFFLINE_STATUS)
 
         raw_pulses = join_32_signed(pos_regs[0], pos_regs[1])
         status = status_regs[0]
@@ -222,13 +226,11 @@ class ICLRSDriver(MotorDriver):
         position) and the alarm word. Velocity is not read (UI uses `running`)."""
         try:
             blk = await self.modbus.read_holding_registers(self.slave_id, MOTION_STATUS, 19)
+            if len(blk) < 19:
+                raise IOError("short block read")
             alarm_regs = await self.modbus.read_holding_registers(self.slave_id, CURRENT_ALARM, 1)
         except Exception:
-            return {
-                "position_deg": 0.0, "position_pulses": 0, "velocity_rpm": 0,
-                "running": False, "enabled": False, "estopped": False,
-                "alarm": 0, "status_bits": 0, "offline": True,
-            }
+            return dict(OFFLINE_STATUS)
         status = blk[0]
         off = FEEDBACK_POS_H - MOTION_STATUS
         raw_pulses = join_32_signed(blk[off], blk[off + 1])
