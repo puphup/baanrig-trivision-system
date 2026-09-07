@@ -225,46 +225,11 @@
   .seq-phase .phase-label { color: var(--accent); font-weight: 600; }
 
   /* =========================================================================
-     SETUP TAB
+     CABINETS TAB
      ========================================================================= */
-  .setup-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
-  @media (max-width: 1000px) { .setup-grid { grid-template-columns: 1fr; } }
-
-  .setup-section h3 .pill {
-    font-size: 0.6rem; padding: 1px 7px; border-radius: 9px; margin-left: 6px;
-    background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border);
-  }
-
-  .gw-list, .motor-list {
-    display: grid; gap: 6px;
-  }
-  .gw-row {
-    display: grid;
-    grid-template-columns: 60px 1.2fr 80px 28px;
-    gap: 6px; align-items: center;
-  }
-  .gw-row input { padding: 5px 8px; font-size: 0.78rem; }
-  .gw-id-input { text-transform: lowercase; }
-
-  .motor-row {
-    display: grid;
-    grid-template-columns: 100px 90px 70px 1fr 28px;
-    gap: 6px; align-items: center;
-  }
-  .motor-row .lbl { font-size: 0.7rem; color: var(--accent); }
-  .motor-row .lbl.dup { color: var(--red); }
-
-  .danger-x { color: var(--text-dimmer); padding: 4px 8px; }
-  .danger-x:hover { color: var(--red); }
-
-  .helper-row {
-    display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px;
-    padding-top: 8px; border-top: 1px solid var(--border);
-  }
+  .cab-table { width:100%; border-collapse:collapse; font-size:.78rem; }
+  .cab-table th, .cab-table td { padding:6px 8px; border-bottom:1px solid var(--border); text-align:left; }
+  .cab-table td.offline { color:#888; } .cab-table td.alarm { color:#ef4444; }
 
   /* --- Toast ------------------------------------------------------------- */
   .toast {
@@ -320,7 +285,7 @@
     <h1>Baanrig Trivision System</h1>
     <div class="tabs">
       <button type="button" class="tab active" data-tab="control" onclick="switchTab('control')">Control</button>
-      <button type="button" class="tab" data-tab="setup" onclick="switchTab('setup')">Setup</button>
+      <button type="button" class="tab" data-tab="cabinets" onclick="switchTab('cabinets')">Cabinets</button>
     </div>
   </div>
   <div>
@@ -507,81 +472,34 @@
   </div>
 </div>
 
-<!-- ============== SETUP TAB ============== -->
-<div id="tab-setup" class="tab-content">
-  <div class="setup-grid">
-
-    <!-- LEFT column: gateways + motors -->
-    <div style="display:flex; flex-direction:column; gap:12px;">
-
-      <div class="card setup-section">
-        <h3>Mode</h3>
-        <select id="cfg-mode" onchange="onModeChange()">
-          <option value="simulation">Simulation (in-process, no hardware)</option>
-          <option value="tcp">Modbus TCP via Gateways</option>
-        </select>
-        <div style="margin-top:6px; font-size:0.65rem; color:var(--text-dim);">
-          Changes here require a server restart to apply.
+<!-- ============== CABINETS TAB ============== -->
+<div id="tab-cabinets" class="tab-content">
+  <div class="control-layout">
+    <div class="grid-card">
+      <div class="grid-toolbar">
+        <h2 style="margin:0">Cabinets</h2>
+        <div class="field" style="margin-left:12px"><label for="mode-select">Mode</label>
+          <select id="mode-select" onchange="setMode(this.value)"><option value="tcp">Hardware (TCP)</option><option value="simulation">Simulation</option></select>
         </div>
+        <span class="spacer"></span>
+        <span style="font-size:.7rem;color:var(--text-dim)">PC must be on 192.168.20.0/24 (e.g. 192.168.20.10). Gateways 192.168.20.101–.121 odd, spares even.</span>
       </div>
-
-      <div class="card setup-section">
-        <h3>Gateways <span class="pill" id="gw-pill">0/0</span></h3>
-        <div class="gw-row" style="font-size:0.62rem; color:var(--text-dimmer); margin-bottom:4px;">
-          <div>ID</div><div>Host</div><div>Port</div><div></div>
-        </div>
-        <div class="gw-list" id="gw-list"></div>
-        <div class="helper-row">
-          <button type="button" id="btn-add-gw" onclick="addGateway()">+ Add Gateway</button>
-        </div>
-      </div>
-
-      <div class="card setup-section">
-        <h3>Motors <span class="pill" id="motors-pill">0/0</span></h3>
-        <div class="motor-row" style="font-size:0.62rem; color:var(--text-dimmer); margin-bottom:4px;">
-          <div>Label</div><div>Gateway</div><div>Slave ID</div><div>Driver</div><div></div>
-        </div>
-        <div class="motor-list" id="motor-list" style="max-height:480px; overflow-y:auto; padding-right:4px;"></div>
-        <div class="helper-row" id="motor-helpers">
-          <button type="button" onclick="addMotorRow()">+ Add Motor</button>
-          <span class="counter" style="margin-left:auto;">Bulk:</span>
-          <span id="bulk-add-buttons"></span>
-        </div>
-      </div>
+      <table class="cab-table">
+        <thead><tr><th>Cabinet</th><th>IP in use</th><th>Use spare IP</th><th>Motors</th><th>Online</th><th></th></tr></thead>
+        <tbody id="cab-rows"></tbody>
+      </table>
     </div>
-
-    <!-- RIGHT column: defaults, server, test -->
-    <div style="display:flex; flex-direction:column; gap:12px;">
-
-      <div class="card setup-section">
-        <h3>Motor Defaults</h3>
-        <div class="field-row">
-          <div class="field"><label for="cfg-cmd-ppr">Command pulses/rev</label><input type="number" id="cfg-cmd-ppr" value="4000"></div>
-          <div class="field"><label for="cfg-enc-ppr">Encoder pulses/rev</label><input type="number" id="cfg-enc-ppr" value="4000"></div>
-        </div>
-        <div style="font-size:0.65rem; color:var(--text-dim);">
-          Used as the angle ↔ pulse scale for every motor. Per-motor overrides coming later.
-        </div>
+    <div class="grid-card">
+      <h2 style="margin:0 0 8px">Diagnostics — selected motor <span id="diag-label" style="color:var(--text-dim)">—</span></h2>
+      <div class="field-row">
+        <div class="field"><label for="reg-addr">Register (hex)</label><input id="reg-addr" value="0x602E"></div>
+        <div class="field"><label for="reg-count">Count</label><input id="reg-count" type="number" value="1" min="1" max="20"></div>
+        <button type="button" onclick="regRead()">Read</button>
+        <div class="field"><label for="reg-values">Values (comma, hex ok)</label><input id="reg-values" placeholder="0x27"></div>
+        <label style="font-size:.7rem"><input type="checkbox" id="reg-save"> save to EEPROM</label>
+        <button type="button" class="btn-warning" onclick="regWrite()">Write</button>
       </div>
-
-      <div class="card setup-section">
-        <h3>Web Server</h3>
-        <div class="field-row">
-          <div class="field"><label for="cfg-host">Bind host</label><input type="text" id="cfg-host" value="0.0.0.0"></div>
-          <div class="field"><label for="cfg-srvport">Port</label><input type="number" id="cfg-srvport" value="8000"></div>
-        </div>
-      </div>
-
-      <div class="card setup-section">
-        <h3>Apply</h3>
-        <div style="display:flex; flex-direction:column; gap:6px;">
-          <button type="button" class="btn-primary" onclick="saveConfig()">Save &amp; Apply</button>
-          <button type="button" id="btn-test" onclick="doTestConnection()">Test Connection (all motors)</button>
-          <div id="test-result" style="display:none; padding:8px 10px; border-radius:6px; font-size:0.72rem; white-space:pre-line; max-height:200px; overflow-y:auto;"></div>
-          <div style="font-size:0.62rem; color:var(--text-dim);">A restart is required to load new gateway / motor / mode settings.</div>
-        </div>
-      </div>
-
+      <pre id="reg-out" style="font-size:.72rem; margin-top:6px; white-space:pre-wrap"></pre>
     </div>
   </div>
 </div>
@@ -594,25 +512,12 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
 // ============================ State ============================
-let limits = { max_gateways: 8, max_motors_per_gateway: 20, max_total_motors: 60 };
-let driverCatalog = [
-  { key: 'icl_rs', label: 'iCL-RS / DM-RS (Leadshine PR0)' },
-  { key: 'tl_r',   label: 'TL-R series (RS485 Integrated)' },
-];
-let driverDefault = 'icl_rs';
 let lastData = { motors: {}, inventory: [], sequence: { phase: 'idle', active: false } };
 let selectedKey = null;
 let motorsEnabled = false;
 let showEffects = [];
 let autoRunning = false;
 let showBusy = false;      // a flip is in progress → block manual flips
-let setupDraft = {              // local working copy of setup tab data
-  mode: 'simulation',
-  gateways: [],
-  motors: [],
-  motor_defaults: { command_ppr: 4000, encoder_ppr: 4000 },
-  server: { host: '0.0.0.0', port: 8000 },
-};
 
 // ============================ Tabs ============================
 function switchTab(name) {
@@ -654,6 +559,7 @@ function onStatus(data) {
   updateMap(data);
   renderCabinetStrip(data);
   updateHoming(data.homing);
+  if (V('tab-cabinets').classList.contains('active')) renderCabinets(data);
   renderFocus(data);
   renderSequenceRows(data);
   updateHeaderBadges(data);
@@ -847,6 +753,7 @@ function renderFocus(d) {
     const faceHtml = face ? `<span class="face-badge f${face}">F${face}</span>` : '';
     V('focus-label').innerHTML = `${inv.label} ${faceHtml}`;
     V('focus-sub').textContent = `${inv.motor_key} · ${inv.driver_type}` + (m.offline ? ' · OFFLINE' : '');
+    V('diag-label').textContent = inv.label;
     V('focus-pos').textContent = (m.position_deg != null) ? `${m.position_deg.toFixed(2)}°` : '—';
     V('focus-vel').textContent = (m.velocity_rpm != null) ? `${m.velocity_rpm} rpm` : '—';
     const flags = [];
@@ -1064,227 +971,62 @@ async function toggleAuto() {
   });
 }
 
-// ============================ Setup tab ============================
-function onModeChange() {
-  setupDraft.mode = V('cfg-mode').value;
-  // No structural change to gateways/motors editor — both modes use the same data.
-}
-
-function renderGatewayList() {
-  const list = V('gw-list');
-  list.innerHTML = setupDraft.gateways.map((gw, i) => `
-    <div class="gw-row" data-gw-idx="${i}">
-      <input type="text" class="gw-id-input" value="${gw.id}" data-field="id" placeholder="gw1" title="Gateway ID (lowercase, e.g. gw1)">
-      <input type="text" value="${gw.host}" data-field="host" placeholder="192.168.10.201">
-      <input type="number" value="${gw.port}" data-field="port" placeholder="502">
-      ${setupDraft.gateways.length > 1 ? `<button type="button" class="btn-sm danger-x" onclick="removeGateway(${i})" title="Remove">×</button>` : '<span></span>'}
-    </div>
-  `).join('');
-  V('gw-pill').textContent = `${setupDraft.gateways.length}/${limits.max_gateways}`;
-  V('btn-add-gw').disabled = setupDraft.gateways.length >= limits.max_gateways;
-  // wire input change
-  $$('.gw-row input').forEach(inp => {
-    inp.oninput = (e) => {
-      const idx = parseInt(e.target.closest('.gw-row').dataset.gwIdx);
-      const f = e.target.dataset.field;
-      setupDraft.gateways[idx][f] = (f === 'port') ? parseInt(e.target.value || 502) : e.target.value;
-      // If gateway id changed, rebuild motor-gateway dropdowns + labels
-      if (f === 'id') renderMotorList();
-      // Update bulk-add buttons
-      renderBulkAddButtons();
-    };
-  });
-  renderBulkAddButtons();
-}
-
-function addGateway() {
-  if (setupDraft.gateways.length >= limits.max_gateways) return;
-  // Choose next unused gw{N}
-  const used = new Set(setupDraft.gateways.map(g => g.id));
-  let n = 1;
-  while (used.has(`gw${n}`)) n++;
-  setupDraft.gateways.push({ id: `gw${n}`, host: '192.168.10.20' + n, port: 502 });
-  renderGatewayList();
-  renderMotorList();
-}
-
-function removeGateway(i) {
-  const removed = setupDraft.gateways[i];
-  setupDraft.gateways.splice(i, 1);
-  // Reassign any motors that pointed to the removed gateway to the first remaining one (or drop)
-  if (setupDraft.gateways.length === 0) {
-    setupDraft.motors = [];
-  } else {
-    const fallback = setupDraft.gateways[0].id;
-    setupDraft.motors.forEach(m => { if (m.gateway === removed.id) m.gateway = fallback; });
-  }
-  renderGatewayList();
-  renderMotorList();
-}
-
-function labelFor(gw, slaveId) {
-  const m = /^gw(\d+)$/.exec(gw);
-  const sid = parseInt(slaveId);
-  if (m && Number.isInteger(sid)) return `GW${parseInt(m[1])}-M${String(sid).padStart(2,'0')}`;
-  return `${(gw || '?').toUpperCase()}-M${sid || '?'}`;
-}
-
-function renderMotorList() {
-  const list = V('motor-list');
-  const gwIds = setupDraft.gateways.map(g => g.id);
-  const seen = new Map();   // key → first index
-  setupDraft.motors.forEach((m, i) => {
-    const k = `${m.gateway}.${m.slave_id}`;
-    if (!seen.has(k)) seen.set(k, i);
-  });
-  list.innerHTML = setupDraft.motors.map((m, i) => {
-    const dupClass = (seen.get(`${m.gateway}.${m.slave_id}`) !== i) ? ' dup' : '';
-    return `
-    <div class="motor-row" data-mt-idx="${i}">
-      <div class="lbl${dupClass}" title="${dupClass ? 'Duplicate (gateway, slave_id)' : ''}">${labelFor(m.gateway, m.slave_id)}</div>
-      <select data-field="gateway">${gwIds.map(g => `<option value="${g}" ${g === m.gateway ? 'selected' : ''}>${g}</option>`).join('')}</select>
-      <input type="number" min="1" max="31" value="${m.slave_id}" data-field="slave_id">
-      <select data-field="driver_type">${driverCatalog.map(t => `<option value="${t.key}" ${t.key === m.driver_type ? 'selected' : ''}>${t.label}</option>`).join('')}</select>
-      <button type="button" class="btn-sm danger-x" onclick="removeMotorRow(${i})" title="Remove">×</button>
-    </div>
-    `;
+// ============================ Cabinets tab ============================
+function renderCabinets(d) {
+  if (!mapInv) return;
+  const motors = (d && d.motors) || {};
+  V('mode-select').value = mapInv.mode || 'tcp';
+  V('cab-rows').innerHTML = mapInv.cabinets.map(c => {
+    const sts = c.motor_keys.map(k => motors[k] || { offline: true });
+    const online = sts.filter(s => !s.offline).length;
+    const alarm = sts.some(s => !s.offline && s.alarm);
+    const usingSpare = c.active_host === c.spare && !!c.spare;
+    return `<tr>
+      <td>Cabinet ${c.cabinet}</td>
+      <td>${c.active_host}</td>
+      <td><input type="checkbox" ${usingSpare ? 'checked' : ''} ${c.spare ? '' : 'disabled'} onchange="toggleSpare(${c.cabinet}, this.checked)"> ${c.spare || '—'}</td>
+      <td>${c.motor_keys.length}</td>
+      <td class="${online === 0 ? 'offline' : alarm ? 'alarm' : ''}">${online}/${c.motor_keys.length}${alarm ? ' ⚠' : ''}</td>
+      <td><button type="button" onclick="doSeekHomeCab(${c.cabinet})">Seek Home</button>
+          <button type="button" class="btn-warning" onclick="doCommission(${c.cabinet})" title="Fresh drives only: DI1 off, DI3 home switch, homing 3/1 rpm, save. Power-cycle the cabinet afterwards.">Commission</button></td>
+    </tr>`;
   }).join('');
-  V('motors-pill').textContent = `${setupDraft.motors.length}/${limits.max_total_motors}`;
-  $$('.motor-row select, .motor-row input').forEach(inp => {
-    inp.oninput = (e) => {
-      const idx = parseInt(e.target.closest('.motor-row').dataset.mtIdx);
-      const f = e.target.dataset.field;
-      const v = (f === 'slave_id') ? parseInt(e.target.value || 1) : e.target.value;
-      setupDraft.motors[idx][f] = v;
-      renderMotorList();
-    };
-  });
 }
 
-function renderBulkAddButtons() {
-  const wrap = V('bulk-add-buttons');
-  wrap.innerHTML = setupDraft.gateways.map(gw =>
-    `<button type="button" class="btn-sm" onclick="addAllForGateway('${gw.id}')">+ 20 to ${gw.id}</button>`
-  ).join(' ');
+async function toggleSpare(n, checked) {
+  const cur = new Set(mapInv.cabinets.filter(c => c.active_host === c.spare && c.spare).map(c => c.cabinet));
+  checked ? cur.add(n) : cur.delete(n);
+  const r = await api('config', { use_spare: [...cur] });
+  showToast(r.applied ? `Cabinet ${n}: now using ${checked ? 'spare' : 'primary'} IP` : `Saved, reload failed: ${r.reload_error}`, r.applied ? 'success' : 'error');
+  mapInv = null;   // re-fetch inventory on next status frame
 }
 
-function addMotorRow() {
-  if (setupDraft.motors.length >= limits.max_total_motors) return;
-  const gw = setupDraft.gateways[0]?.id || 'gw1';
-  // Pick first unused slave_id on this gateway, 1..31
-  const used = new Set(setupDraft.motors.filter(m => m.gateway === gw).map(m => parseInt(m.slave_id)));
-  let sid = 1;
-  while (used.has(sid) && sid <= 31) sid++;
-  setupDraft.motors.push({ gateway: gw, slave_id: sid, driver_type: driverDefault });
-  renderMotorList();
+async function setMode(mode) {
+  const r = await api('config', { mode });
+  showToast(r.applied ? `Mode: ${mode}` : `Mode saved, reload failed: ${r.reload_error}`, r.applied ? 'success' : 'error');
+  mapInv = null;
 }
 
-function removeMotorRow(i) {
-  setupDraft.motors.splice(i, 1);
-  renderMotorList();
+async function doCommission(n) {
+  if (!confirm(`Commission every drive in cabinet ${n}? Only for fresh drives. You must power-cycle the cabinet afterwards.`)) return;
+  const r = await api('commission', { cabinet: n });
+  const fails = (r.failed || []).map(f => `${f.motor_key}: ${f.error}`).join('\n');
+  showToast(`Cabinet ${n}: ${r.done}/${r.total} commissioned. POWER-CYCLE CABINET ${n} NOW, then press Reconnect.` + (fails ? `\nFailed:\n${fails}` : ''), r.done === r.total ? 'success' : 'error');
 }
 
-function addAllForGateway(gwId) {
-  const existing = new Set(
-    setupDraft.motors.filter(m => m.gateway === gwId).map(m => parseInt(m.slave_id))
-  );
-  let added = 0;
-  for (let sid = 1; sid <= limits.max_motors_per_gateway; sid++) {
-    if (setupDraft.motors.length >= limits.max_total_motors) break;
-    if (existing.has(sid)) continue;
-    setupDraft.motors.push({ gateway: gwId, slave_id: sid, driver_type: driverDefault });
-    added++;
-  }
-  renderMotorList();
-  if (added > 0) showToast(`Added ${added} motors to ${gwId}.`, 'success');
+async function regRead() {
+  if (!selectedKey) return showToast('Select a motor on the Control tab first', 'error');
+  const a = V('reg-addr').value.trim(), n = V('reg-count').value;
+  const r = await get(`reg/${selectedKey}/${a}?count=${n}`);
+  V('reg-out').textContent = JSON.stringify(r, null, 1);
 }
 
-// ============================ Setup load / save ============================
-async function loadSetup() {
-  try {
-    const [cfg, dt, lims] = await Promise.all([get('config'), get('driver-types'), get('limits')]);
-    if (dt && Array.isArray(dt.types) && dt.types.length) {
-      driverCatalog = dt.types;
-      driverDefault = dt.default || driverCatalog[0].key;
-    }
-    if (lims) limits = lims;
-    setupDraft = {
-      mode: cfg.mode || 'simulation',
-      gateways: Array.isArray(cfg.gateways) ? cfg.gateways.map(g => ({ ...g })) : [],
-      motors: Array.isArray(cfg.motors) ? cfg.motors.map(m => ({ ...m })) : [],
-      motor_defaults: { ...(cfg.motor_defaults || { command_ppr: 4000, encoder_ppr: 4000 }) },
-      server: { ...(cfg.server || { host: '0.0.0.0', port: 8000 }) },
-    };
-    V('cfg-mode').value = setupDraft.mode;
-    V('cfg-cmd-ppr').value = setupDraft.motor_defaults.command_ppr;
-    V('cfg-enc-ppr').value = setupDraft.motor_defaults.encoder_ppr;
-    V('cfg-host').value = setupDraft.server.host;
-    V('cfg-srvport').value = setupDraft.server.port;
-    renderGatewayList();
-    renderMotorList();
-  } catch (e) {
-    showToast('Failed to load setup: ' + e.message, 'danger');
-  }
-}
-
-async function saveConfig() {
-  // Validate: no dup (gateway, slave_id), gateway ids non-empty + unique
-  const gwIds = setupDraft.gateways.map(g => g.id.trim()).filter(Boolean);
-  if (gwIds.length !== setupDraft.gateways.length) return showToast('Every gateway needs an ID.', 'danger');
-  if (new Set(gwIds).size !== gwIds.length) return showToast('Gateway IDs must be unique.', 'danger');
-  const motorKeys = setupDraft.motors.map(m => `${m.gateway}.${m.slave_id}`);
-  if (new Set(motorKeys).size !== motorKeys.length) return showToast('Each motor must have a unique (gateway, slave_id) pair.', 'danger');
-
-  setupDraft.motor_defaults = {
-    command_ppr: parseInt(V('cfg-cmd-ppr').value || 4000),
-    encoder_ppr: parseInt(V('cfg-enc-ppr').value || 4000),
-  };
-  setupDraft.server = {
-    host: V('cfg-host').value || '0.0.0.0',
-    port: parseInt(V('cfg-srvport').value || 8000),
-  };
-  setupDraft.mode = V('cfg-mode').value;
-
-  const res = await api('config', setupDraft);
-  if (!res.ok) {
-    showToast('Save failed: ' + (res.error || 'unknown'), 'danger');
-    return;
-  }
-  if (res.applied) {
-    showToast('Config saved and applied. Live motors updated.', 'success');
-  } else {
-    showToast('Saved, but live reload failed: ' + (res.reload_error || 'restart needed'), 'danger');
-  }
-}
-
-async function doTestConnection() {
-  const btn = V('btn-test');
-  const result = V('test-result');
-  btn.disabled = true; btn.textContent = 'Testing…';
-  result.style.display = 'none';
-
-  await saveConfig();
-
-  try {
-    const r = await api('test-connection', {});
-    result.style.display = 'block';
-    if (r.ok) {
-      result.style.background = '#1a3a2a'; result.style.color = '#34d399'; result.style.border = '1px solid #2a5a3a';
-      result.textContent = `All ${r.motors.length} motors responding.\n` +
-        r.motors.map(m => `  ${m.label}  status=0x${(m.status||0).toString(16).toUpperCase()}`).join('\n');
-    } else {
-      result.style.background = '#3a1a1a'; result.style.color = '#ef4444'; result.style.border = '1px solid #5a2a2a';
-      const detail = r.error
-        ? r.error
-        : (r.motors || []).filter(m => !m.ok).map(m => `  ${m.label || m.motor_key}: ${m.error}`).join('\n');
-      result.textContent = `Connection test failed.\n${detail || ''}`;
-    }
-  } catch (e) {
-    result.style.display = 'block';
-    result.textContent = 'Error: ' + e.message;
-    result.style.background = '#3a1a1a'; result.style.color = '#ef4444';
-  }
-  btn.disabled = false; btn.textContent = 'Test Connection (all motors)';
+async function regWrite() {
+  if (!selectedKey) return showToast('Select a motor on the Control tab first', 'error');
+  const a = V('reg-addr').value.trim();
+  const values = V('reg-values').value.split(',').map(s => parseInt(s.trim(), s.trim().startsWith('0x') ? 16 : 10)).filter(v => !isNaN(v));
+  const r = await api(`reg/${selectedKey}/${a}`, { values, save: V('reg-save').checked });
+  V('reg-out').textContent = JSON.stringify(r, null, 1);
 }
 
 // ============================ Toast ============================
@@ -1298,7 +1040,6 @@ function showToast(msg, type) {
 }
 
 // ============================ Init ============================
-loadSetup();
 loadShowEffects();
 loadMotors();
 applyFocusCollapsed();
