@@ -51,6 +51,8 @@ zero_offsets: dict[str, int] = {}
 # Latest raw status per motor key, written by the per-cabinet pollers.
 status_cache: dict[str, dict] = {}
 _poll_tasks: list[asyncio.Task] = []
+# Progress of the in-flight /api/seek-home run (single run at a time).
+homing_state: dict = {"active": False, "total": 0, "done": 0, "failed": []}
 
 
 def _motor_specs() -> list[dict]:
@@ -344,6 +346,15 @@ class MotorKeyRequest(BaseModel):
     motor_key: str | None = None       # None / empty → apply to all
 
 
+class SeekHomeRequest(BaseModel):
+    motor_key: str | None = None       # one motor
+    cabinet: int | None = None         # one cabinet; neither → whole wall
+
+
+class CabinetRequest(BaseModel):
+    cabinet: int
+
+
 class HomeRequest(BaseModel):
     motor_key: str | None = None       # None → all motors
     speed_rpm: int = 10
@@ -396,6 +407,11 @@ def _resolve_targets(motor_key: str | None) -> list[str]:
     if motor_key:
         return [motor_key] if motor_key in drivers else []
     return list(drivers.keys())
+
+
+def _keys_for_cabinet(cabinet: int) -> list[str]:
+    prefix = f"gw{int(cabinet)}."
+    return [k for k in drivers if k.startswith(prefix)]
 
 
 # ---------------------------------------------------------------------------
@@ -505,23 +521,50 @@ async def home_motor(req: HomeRequest):
 
 
 @app.post("/api/seek-home")
-async def seek_home(req: MotorKeyRequest):
-    """Run the drive's own homing routine toward the DI3 home switch
-    (iCL-RS only, after --setup-iclrs-home). Sets the drive origin at the switch."""
-    if sequencer.active:
-        return {"error": "Sequence in progress"}
-    failed = []
-    targets = _resolve_targets(req.motor_key)
-    for key in targets:
+async def seek_home(req: SeekHomeRequest):
+    """Drive-level DI3 homing. One motor, one cabinet, or the whole wall.
+    Cabinets run in parallel; motors inside a cabinet are staggered 200 ms."""
+    if (sequencer is not None and sequencer.active) or homing_state["active"]:
+        return {"error": "Sequence or homing in progress"}
+    if req.motor_key:
+        targets = _resolve_targets(req.motor_key)
+    elif req.cabinet is not None:
+        targets = _keys_for_cabinet(req.cabinet)
+    else:
+        targets = list(drivers.keys())
+    whole_wall = not req.motor_key and req.cabinet is None
+    homing_state.update({"active": True, "total": len(targets), "done": 0, "failed": []})
+    by_gw: dict[str, list[str]] = {}
+    for k in targets:
+        by_gw.setdefault(k.rsplit(".", 1)[0], []).append(k)
+    asyncio.create_task(_seek_home_wall(list(by_gw.values()), whole_wall))
+    return {"ok": True, "total": len(targets)}
+
+
+async def _seek_home_cabinet(keys: list[str]) -> None:
+    zero_tasks = []
+    for key in keys:
         d = drivers[key]
         try:
             if not hasattr(d, "seek_home"):
                 raise TypeError("no home-switch homing on this driver")
             await d.seek_home()
-            asyncio.create_task(_zero_display_after_homing(key, d))
+            zero_tasks.append(asyncio.create_task(_zero_display_after_homing(key, d)))
         except Exception as e:
-            failed.append({"motor_key": key, "error": str(e)[:80]})
-    return {"ok": True, "total": len(targets), "done": len(targets) - len(failed), "failed": failed}
+            homing_state["failed"].append({"motor_key": key, "error": str(e)[:80]})
+        await asyncio.sleep(0.2)
+    for t in zero_tasks:
+        await t
+        homing_state["done"] += 1
+
+
+async def _seek_home_wall(groups: list[list[str]], whole_wall: bool) -> None:
+    try:
+        await asyncio.gather(*(_seek_home_cabinet(g) for g in groups))
+        if whole_wall and not homing_state["failed"]:
+            await show.set_current_page(1)
+    finally:
+        homing_state["active"] = False
 
 
 async def _zero_display_after_homing(key: str, d: MotorDriver) -> None:
@@ -538,6 +581,25 @@ async def _zero_display_after_homing(key: str, d: MotorDriver) -> None:
         except Exception:
             pass
         await asyncio.sleep(0.5)
+
+
+@app.post("/api/commission")
+async def commission(req: CabinetRequest):
+    """Fresh-drive setup for one cabinet: DI1 → software enable, DI3 = home
+    switch (N.O.), homing speeds 3/1 rpm, EEPROM save. Power-cycle after."""
+    from .drivers.icl_rs import ICLRSDriver
+    targets = _keys_for_cabinet(req.cabinet)
+    failed = []
+    for key in targets:
+        d = drivers[key]
+        try:
+            if not isinstance(d, ICLRSDriver):
+                raise TypeError("not an iCL-RS drive (simulated?)")
+            await d.configure_software_enable()
+            await d.configure_home_switch(normally_closed=False, high_rpm=3, low_rpm=1)
+        except Exception as e:
+            failed.append({"motor_key": key, "error": str(e)[:80]})
+    return _bulk_result(targets, failed)
 
 
 @app.post("/api/set-zero")
@@ -688,6 +750,18 @@ async def driver_catalog():
         "default": DEFAULT_DRIVER_TYPE,
         "allowed": list(ALLOWED_DRIVER_TYPES),
     }
+
+
+@app.get("/api/motors")
+async def motors_inventory():
+    from .motor_map import cabinet_summary
+    from .config import _map_path
+    data = await _build_status()
+    cabs = cabinet_summary(_map_path(config), config.get("use_spare", []))
+    for c in cabs:
+        c["motor_keys"] = _keys_for_cabinet(c["cabinet"])
+    return {"cabinets": cabs, "motors": data["inventory"],
+            "motion": config.get("motion", {}), "mode": config.get("mode")}
 
 
 # ---------------------------------------------------------------------------
@@ -847,36 +921,34 @@ async def write_reg(motor_key: str, addr: str, req: RegWrite):
 @app.get("/api/config")
 async def get_config():
     return {
-        **config,
+        **{k: config.get(k) for k in
+           ("mode", "map", "use_spare", "motion", "motor_defaults", "server")},
         "limits": {
             "max_gateways": MAX_GATEWAYS,
             "max_motors_per_gateway": MAX_MOTORS_PER_GATEWAY,
             "max_total_motors": MAX_TOTAL_MOTORS,
         },
-        "allowed_driver_types": list(ALLOWED_DRIVER_TYPES),
     }
 
 
 @app.post("/api/config")
 async def update_config(new_cfg: dict):
-    """Replace top-level sections with the values supplied, persist, and apply.
-
-    After saving, the running gateways / drivers / sequencer are torn down and
-    rebuilt in place — no process restart needed. The only setting that still
-    can't be hot-applied is the web server's bind host/port, since uvicorn
-    holds the socket; restart the launcher for those.
-    """
+    """Only mode / use_spare / motion are user-editable; gateways and motors
+    come from the map file. Saving rebuilds the runtime in place."""
     global config
-    for section in ("mode", "gateways", "motors", "motor_defaults", "server", "connection"):
+    for section in ("mode", "use_spare", "motion"):
         if section in new_cfg:
             config[section] = new_cfg[section]
     save_config(config)
-    config = load_config()
+    try:
+        config = load_config()
+    except Exception as e:
+        return {"ok": False, "applied": False, "reload_error": str(e)}
     try:
         await _reload_runtime()
-        return {"ok": True, "config": config, "applied": True}
+        return {"ok": True, "config": {k: config[k] for k in ("mode", "use_spare", "motion")}, "applied": True}
     except Exception as e:
-        return {"ok": True, "config": config, "applied": False, "reload_error": str(e)}
+        return {"ok": True, "applied": False, "reload_error": str(e)}
 
 
 # ---------------------------------------------------------------------------
@@ -988,4 +1060,5 @@ async def _build_status() -> dict:
         "inventory": inventory,
         "sequence": seq_info,
         "show": show.state(),
+        "homing": homing_state,
     }

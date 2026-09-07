@@ -24,6 +24,27 @@ async def main():
     tasks = list(S._poll_tasks)
     await S._stop_pollers()
     assert tasks and all(t.done() for t in tasks)
+
+    # --- seek-home by cabinet + wall homing resets face, commission on sim fails cleanly
+    sim2 = MotorSim(slave_id=1); sim2.position = 777.0
+    S.drivers["gw2.1"] = SimDriver(sim2)
+    S.config["gateways"].append({"id": "gw2", "host": "y", "port": 1})
+    S.config["motors"].append({"gateway": "gw2", "slave_id": 1, "driver_type": "icl_rs"})
+    S.config["motor_extras"]["gw2.1"] = {"motor": 2, "label": "M002", "cabinet": 2, "x": 3.0, "y": 4.0, "apex_deg": 0.0, "estimated": False}
+    await S._start_pollers()
+    r = await S.seek_home(S.SeekHomeRequest(cabinet=2))
+    assert r == {"ok": True, "total": 1}, r
+    await asyncio.sleep(1.8)                       # 1 s settle + poll in _zero_display_after_homing
+    assert sim2.position == 0.0 and sim.position == 4000.0
+    assert S.homing_state["done"] == 1 and not S.homing_state["active"]
+    await S.show.set_current_page(3)
+    r = await S.seek_home(S.SeekHomeRequest())
+    assert r["total"] == 2
+    await asyncio.sleep(2.0)
+    assert S.show.state()["current_page"] == 1
+    c = await S.commission(S.CabinetRequest(cabinet=2))
+    assert c["done"] == 0 and c["failed"][0]["motor_key"] == "gw2.1"
+    await S._stop_pollers()
     print("ok")
 
 asyncio.run(main())
