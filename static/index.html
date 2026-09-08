@@ -60,6 +60,7 @@
 
   .badge { font-size: 0.6rem; padding: 2px 8px; border-radius: 10px; vertical-align: middle; margin-left: 8px; }
   .badge-sim { background: #1a3a2a; color: var(--green); border: 1px solid #2a5a3a; }
+  select.badge { cursor: pointer; font-family: inherit; }
   .badge-hw { background: #1a2a4a; color: var(--accent); border: 1px solid #2a4a6a; }
 
   /* --- Buttons ----------------------------------------------------------- */
@@ -285,7 +286,7 @@
   </div>
   <div>
     <span id="motor-count" class="badge badge-sim">0 motors</span>
-    <span id="mode-badge" class="badge badge-sim">SIM</span>
+    <select id="mode-select" class="badge badge-sim" title="Hardware (TCP) or in-process simulation of the whole wall" onchange="setMode(this.value)"><option value="tcp">TCP</option><option value="simulation">SIM</option></select>
     <span id="ws-dot" class="status-dot dot-err"></span>
     <span id="ws-label" style="font-size:0.72rem; color:var(--text-dim)">Disconnected</span>
   </div>
@@ -472,9 +473,6 @@
     <div class="grid-card">
       <div class="grid-toolbar">
         <h2 style="margin:0">Cabinets</h2>
-        <div class="field" style="margin-left:12px"><label for="mode-select">Mode</label>
-          <select id="mode-select" onchange="setMode(this.value)"><option value="tcp">Hardware (TCP)</option><option value="simulation">Simulation</option></select>
-        </div>
         <span class="spacer"></span>
         <span style="font-size:.7rem;color:var(--text-dim)">PC must be on 192.168.20.0/24 (e.g. 192.168.20.10). Gateways 192.168.20.101–.121 odd, spares even.</span>
       </div>
@@ -598,9 +596,9 @@ function updateHeaderBadges(d) {
   V('motor-count').textContent = `${n} motor${n===1?'':'s'}`;
   V('online-count').textContent = `${online}/${n} online`;
   const m = d.mode || 'simulation';
-  const b = V('mode-badge');
-  if (m === 'tcp')        { b.textContent = 'TCP'; b.className = 'badge badge-hw'; }
-  else                    { b.textContent = 'SIM'; b.className = 'badge badge-sim'; }
+  const b = V('mode-select');
+  if (b.value !== m) b.value = m;   // only touch it when it changed, so an open dropdown isn't reset
+  b.className = m === 'tcp' ? 'badge badge-hw' : 'badge badge-sim';
 }
 
 function updateEnableAllButton(d) {
