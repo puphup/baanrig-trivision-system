@@ -1,8 +1,19 @@
 {
-  "mode": "tcp",
+  "mode": "simulation",
   "map": "motor_map.json",
   "use_spare": [],
-  "motion": {"speed": 5, "accel": 500, "decel": 900, "step_ms": 200},
-  "motor_defaults": {"command_ppr": 10000, "encoder_ppr": 65536},
-  "server": {"host": "0.0.0.0", "port": 8000}
+  "motion": {
+    "speed": 5,
+    "accel": 500,
+    "decel": 900,
+    "step_ms": 200
+  },
+  "motor_defaults": {
+    "command_ppr": 10000,
+    "encoder_ppr": 65536
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8000
+  }
 }

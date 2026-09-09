@@ -40,8 +40,8 @@ re-home the wall, step the show, clear alarms, and see per-cabinet health.
 - **Whole wall** — identical to today's map (viewBox `250 600 2850 1120`, all prisms visible).
 - **Cabinet N** — the SVG `viewBox` is set to the bounding box of that cabinet's motors
   padded by 60 units on every side; aspect handled by the existing `preserveAspectRatio="xMidYMid meet"`.
-  Prisms of other cabinets get the `hidden` attribute (they keep receiving status patches;
-  only visibility changes). Prism click still selects the motor into the focus panel.
+  Prisms of other cabinets get class `off` (`.prism.off { display: none }`); they keep receiving status patches,
+  only visibility changes. Prism click still selects the motor into the focus panel.
 - Bounding box function: `cabinetBox(inv, n)` → `{x, y, w, h}` over inventory items with
   `cabinet === n` using their `x`, `y`; padding applied by the caller. Pure function, no DOM.
 - Below the map in cabinet view only: a table with columns
