@@ -259,16 +259,24 @@
   .prism.selected polygon { stroke:var(--accent); stroke-width:6; }
   .prism.moving polygon { stroke:#fbbf24; }
   .prism.alarm polygon { stroke:#ef4444; }
-  .prism.dim polygon { opacity:.25; }
+  .prism.off { display:none; }
   .legend { font-size:.68rem; color:var(--text-dim); display:flex; gap:8px; align-items:center; }
   .legend .sw { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:3px; }
   .legend .f1 { background:#3b82f6 } .legend .f2 { background:#22c55e } .legend .f3 { background:#f59e0b }
   .legend .off { background:#333; border:1px solid #666 } .legend .alarm { border:2px solid #ef4444 } .legend .mov { border:2px solid #fbbf24 }
-  .cab-strip { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .cab-tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
   .cab-btn { font-size:.72rem; padding:4px 8px; border-radius:6px; border:1px solid var(--border); background:var(--surface); cursor:pointer; }
   .cab-btn.active { outline:2px solid #fff; }
-  .cab-btn.offline { color:#888; }
-  .cab-btn.alarm { border-color:#ef4444; color:#ef4444; }
+  .cab-btn.warn { border-color:#fbbf24; color:#fbbf24; }
+  .cab-btn.bad { border-color:#ef4444; color:#ef4444; }
+  .cab-table { width:100%; border-collapse:collapse; font-size:.75rem; margin-top:8px; }
+  .cab-table th, .cab-table td { padding:4px 8px; text-align:left; border-bottom:1px solid var(--border); }
+  .cab-table th { color:var(--text-dim); font-weight:600; }
+  .cab-table tbody tr { cursor:pointer; }
+  .cab-table tbody tr:hover td { background:var(--surface2); }
+  .cab-table tr.selected td { color:var(--accent); }
+  .cab-table tr.offline td { color:var(--text-dimmer); }
+  .cab-table tr.alarm td.alarm { color:#ef4444; }
   .map-row { display:grid; grid-template-columns: 1fr; gap:12px; }
   @media (min-width: 1400px) { .map-row { grid-template-columns: 1fr 360px; } .map-row > .grid-card { order:-1; } }
 </style>
@@ -444,10 +452,11 @@
         <span class="spacer"></span>
         <span class="counter" id="grid-count">0 motors</span>
       </div>
+      <div class="cab-tabs" id="cab-tabs"></div>
       <div class="map-wrap">
         <svg id="wall-map" viewBox="250 600 2850 1120" preserveAspectRatio="xMidYMid meet"></svg>
       </div>
-      <div class="cab-strip" id="cab-strip"></div>
+      <table class="cab-table" id="cab-table" hidden></table>
     </div>
     </div>
 
@@ -550,7 +559,8 @@ function onStatus(data) {
   lastData = data;
   if (!mapInv) loadMotors();
   updateMap(data);
-  updateCabinetStrip(data);
+  updateCabinetTabs(data);
+  updateCabinetTable(data);
   updateHoming(data.homing);
   if (V('tab-cabinets').classList.contains('active')) updateCabinetCounts(data);
   renderFocus(data);
@@ -610,7 +620,6 @@ function updateEnableAllButton(d) {
 }
 
 let mapInv = null;           // GET /api/motors
-let highlightCab = null;
 let loadingMotors = false;   // ponytail: in-flight guard — onStatus retries every tick
                              // (4/s) while mapInv is null, so a failing fetch must not pile up.
 
@@ -620,7 +629,7 @@ async function loadMotors() {
   try {
     mapInv = await get('motors');
     renderMap();
-    renderCabinetStrip();
+    renderCabinetTabs();
     const mo = mapInv.motion || {};
     if (mo.speed) V('show-speed').value = mo.speed;
     if (mo.accel != null) V('show-accel').value = mo.accel;
@@ -659,40 +668,105 @@ function updateMap(d) {
     g.classList.toggle('alarm', !st.offline && !!st.alarm);
     g.classList.toggle('moving', !st.offline && !!st.running);
     g.classList.toggle('selected', g.dataset.key === selectedKey);
-    g.classList.toggle('dim', highlightCab != null && String(highlightCab) !== g.dataset.cab);
     const t = g.querySelector('title');
     const base = t.textContent.split(' · ').slice(0, 3).join(' · ');
     t.textContent = st.offline ? `${base} · offline` : `${base} · ${(st.position_deg ?? 0).toFixed(1)}° · face ${st.current_face ?? '?'}`;
   }
 }
 
-// Buttons are built once per inventory load (like the Cabinets tab rows);
-// per-tick updates only patch text + classes.
-function renderCabinetStrip() {
-  if (!mapInv) return;
-  V('cab-strip').innerHTML = mapInv.cabinets.map(c =>
-    `<button type="button" class="cab-btn" id="cab-btn-${c.cabinet}" onclick="toggleCabinetHighlight(${c.cabinet})" title="${c.active_host}">Cab ${c.cabinet}</button>`
-  ).join('');
-  updateCabinetStrip(lastData);
+// ============================ Cabinet tabs ============================
+// Whole wall + one tab per cabinet. Buttons are built once per inventory load;
+// per-tick updates only patch text + classes. The active tab survives reloads.
+const WALL_VIEWBOX = '250 600 2850 1120';
+const CAB_PAD = 60;                       // SVG units around a cabinet's motors
+let activeTab = 'wall';                   // 'wall' or a cabinet number
+
+function loadTab() {
+  const v = localStorage.getItem('trivision.tab');
+  activeTab = (v && v !== 'wall' && Number.isInteger(+v)) ? +v : 'wall';
 }
 
-function updateCabinetStrip(d) {
+// Pure: bounding box of one cabinet's motors, or null. Twin of test_cabinet_box.py.
+function cabinetBox(inv, n) {
+  const pts = inv.filter(m => m.cabinet === n && m.x != null);
+  if (!pts.length) return null;
+  const xs = pts.map(m => m.x), ys = pts.map(m => m.y);
+  const x = Math.min(...xs), y = Math.min(...ys);
+  return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+}
+
+function renderCabinetTabs() {
+  if (!mapInv) return;
+  const tabs = [`<button type="button" class="cab-btn" id="cab-btn-wall" onclick="selectTab('wall')">Whole wall</button>`]
+    .concat(mapInv.cabinets.map(c =>
+      `<button type="button" class="cab-btn" id="cab-btn-${c.cabinet}" onclick="selectTab(${c.cabinet})" title="${c.active_host}">Cab ${c.cabinet}</button>`));
+  V('cab-tabs').innerHTML = tabs.join('');
+  applyTab();
+}
+
+function updateCabinetTabs(d) {
   if (!mapInv) return;
   const motors = d.motors || {};
+  const wall = V('cab-btn-wall');
+  if (wall) wall.className = 'cab-btn' + (activeTab === 'wall' ? ' active' : '');
   mapInv.cabinets.forEach(c => {
     const btn = V(`cab-btn-${c.cabinet}`);
     if (!btn) return;
     const sts = c.motor_keys.map(k => motors[k] || { offline: true });
     const online = sts.filter(s => !s.offline).length;
-    const alarm = sts.some(s => !s.offline && s.alarm);
-    btn.textContent = `Cab ${c.cabinet} · ${online}/${c.motor_keys.length}`;
-    btn.className = ['cab-btn', online === 0 ? 'offline' : '', alarm ? 'alarm' : '', highlightCab === c.cabinet ? 'active' : ''].join(' ');
+    const bad = online < sts.length || sts.some(s => !s.offline && s.alarm);
+    const warn = sts.some(s => !s.offline && s.running);
+    btn.textContent = `Cab ${c.cabinet} · ${online}/${sts.length}`;
+    btn.className = ['cab-btn', bad ? 'bad' : (warn ? 'warn' : ''), activeTab === c.cabinet ? 'active' : ''].join(' ');
   });
 }
 
-function toggleCabinetHighlight(n) {
-  highlightCab = (highlightCab === n) ? null : n;
-  updateMap(lastData); updateCabinetStrip(lastData);
+function selectTab(t) {
+  activeTab = t;
+  localStorage.setItem('trivision.tab', String(t));
+  applyTab();
+}
+
+function applyTab() {
+  const svg = V('wall-map');
+  const inv = (mapInv && mapInv.motors) || [];
+  if (activeTab === 'wall') {
+    svg.setAttribute('viewBox', WALL_VIEWBOX);
+  } else {
+    const b = cabinetBox(inv, activeTab);
+    if (!b) { selectTab('wall'); return; }     // stale localStorage after a map change
+    svg.setAttribute('viewBox', `${b.x - CAB_PAD} ${b.y - CAB_PAD} ${b.w + 2 * CAB_PAD} ${b.h + 2 * CAB_PAD}`);
+  }
+  for (const g of $$('.prism')) g.classList.toggle('off', activeTab !== 'wall' && String(activeTab) !== g.dataset.cab);
+  renderCabinetTable();
+  if (lastData) { updateMap(lastData); updateCabinetTabs(lastData); }
+}
+
+function renderCabinetTable() {
+  const tbl = V('cab-table');
+  if (activeTab === 'wall' || !mapInv) { tbl.hidden = true; tbl.innerHTML = ''; return; }
+  const rows = mapInv.motors.filter(m => m.cabinet === activeTab).sort((a, b) => a.motor - b.motor);
+  tbl.innerHTML = '<thead><tr><th>Motor</th><th>ID</th><th>Position °</th><th>Face</th><th>Status</th><th>Alarm</th></tr></thead><tbody>' +
+    rows.map(m => `<tr data-key="${m.motor_key}" onclick="selectMotor('${m.motor_key}')"><td>${m.label}</td><td>${m.slave_id}</td><td class="pos">—</td><td class="face">—</td><td class="st">—</td><td class="alarm">—</td></tr>`).join('') +
+    '</tbody>';
+  tbl.hidden = false;
+  if (lastData) updateCabinetTable(lastData);
+}
+
+function updateCabinetTable(d) {
+  const tbl = V('cab-table');
+  if (tbl.hidden) return;
+  const motors = d.motors || {};
+  for (const tr of tbl.querySelectorAll('tbody tr')) {
+    const st = motors[tr.dataset.key] || { offline: true };
+    tr.classList.toggle('offline', !!st.offline);
+    tr.classList.toggle('alarm', !st.offline && !!st.alarm);
+    tr.classList.toggle('selected', tr.dataset.key === selectedKey);
+    tr.querySelector('.pos').textContent = st.offline ? '—' : (st.position_deg ?? 0).toFixed(1);
+    tr.querySelector('.face').textContent = st.offline ? '—' : (st.current_face ?? '?');
+    tr.querySelector('.st').textContent = st.offline ? 'offline' : (st.running ? 'moving' : (st.enabled ? 'enabled' : 'idle'));
+    tr.querySelector('.alarm').textContent = st.alarm ? `0x${st.alarm.toString(16).toUpperCase()}` : '—';
+  }
 }
 
 function updateHoming(h) {
@@ -728,6 +802,7 @@ function selectMotor(key) {
   selectedKey = key;
   updateMap(lastData);
   renderFocus(lastData);
+  updateCabinetTable(lastData);
   // Pull the focus panel into view if the user clicked a tile far below it.
   // Don't scroll on the silent first-load auto-selection. Skip when collapsed.
   if (isUserClick && !V('focus-panel').classList.contains('collapsed')) {
@@ -1063,6 +1138,7 @@ function showToast(msg, type) {
 }
 
 // ============================ Init ============================
+loadTab();
 loadShowEffects();
 loadMotors();
 applyFocusCollapsed();
