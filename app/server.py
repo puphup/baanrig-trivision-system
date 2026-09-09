@@ -583,6 +583,13 @@ async def seek_home(req: SeekHomeRequest):
     return {"ok": True, "total": len(targets)}
 
 
+@app.post("/api/seek-home/cancel")
+async def seek_home_cancel():
+    """Operator-page Cancel. Always 200 so the tablet can press it any time."""
+    was_active = homing_state["active"]
+    await _stop_homing()
+    return {"ok": True, "cancelled": was_active}
+
 async def _seek_home_cabinet(keys: list[str]) -> None:
     zero_tasks = []
     for i, key in enumerate(keys):
