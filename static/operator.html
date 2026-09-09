@@ -47,7 +47,7 @@
   .progress .fill { position:absolute; left:0; top:0; bottom:0; width:0; background:var(--accent); opacity:.5; }
   .progress span { position:relative; }
   .progress .failed { color:var(--warn); margin-left:8px; }
-  .small button { min-height:52px; font-size:17px; font-weight:500; }
+  .small button { font-size:17px; font-weight:500; }
   .cabs { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; font-size:16px; }
   .cab { display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--surface2); border-radius:10px; }
   .cab .dot { width:12px; height:12px; border-radius:50%; background:var(--bad); flex:none; }
@@ -223,6 +223,16 @@ function onStatus(d) {
   const inv = d.inventory || [], motors = d.motors || {};
   const sts = inv.map(m => motors[m.motor_key] || { offline: true });
   V('online').textContent = `${sts.filter(s => !s.offline).length}/${inv.length}`;
+
+  // ponytail: hardware has no e-stop latch, so this only hydrates in sim; on real drives
+  // `enabled` is a status-bit heuristic and just makes Enable all reachable when it is false.
+  const anyEstopped = sts.some(s => !s.offline && s.estopped);
+  const anyDisabled = sts.some(s => !s.offline && !s.enabled);
+  if (anyEstopped && !estop.classList.contains('stopped')) {
+    estop.classList.add('stopped');
+    estop.querySelector('.label').textContent = 'STOPPED';
+  }
+  V('btn-enable').hidden = !(estop.classList.contains('stopped') || anyEstopped || anyDisabled);
 
   const show = d.show || {};
   const page = show.current_page || '–';
