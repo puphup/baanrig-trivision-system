@@ -50,6 +50,18 @@ console window appears with logs, and your default browser opens to
 Live status (position, face, running / enabled / alarm) is pushed to the browser
 over a WebSocket; a background poller per cabinet keeps the bus load flat.
 
+### Operator page (tablet)
+
+Open `http://<server-ip>:8000/operator` on the tablet and add it to the home screen
+(iPad: Share → Add to Home Screen; Android Chrome: menu → Add to Home screen) so it
+runs full-screen. It has only wall-wide controls: hold-to-fire E-STOP with Enable all,
+Prev / Next face, auto-cycle, Home the wall with Cancel, Alarm reset, Reconnect, and a
+per-cabinet health list. Anyone on the network with the URL can use it.
+
+The desktop Control page now opens on a tab row: **Whole wall** plus **Cab 1 … Cab 11**.
+A cabinet tab zooms the map to that cabinet and lists its motors; the last tab used is
+remembered per browser.
+
 ## Quick start
 
 1. Edit `config.json`: `mode` (`tcp` for the wall, `simulation` to try it dry) and
@@ -121,6 +133,8 @@ PR0 register layout.
 app/                    FastAPI server, show controller, sequencer, simulator,
                         Modbus interface, per-family motor drivers
 static/index.html       Single-file dark-themed web UI
+static/operator.html    Tablet page (/operator): E-STOP, homing, show, cabinet health
+test_*.py               Plain assert scripts: ./venv/bin/python test_<name>.py
 motor_map.json          The wall: 11 cabinets + 231 motors (source of truth)
 gen_motor_map.py        Regenerates motor_map.json from Trivision_Motor_Map.md
 Trivision_Motor_Map.md  Hand-maintained wall layout (positions, apex angles, IDs)

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f1117">
+<title>Trivision Operator</title>
+<style>
+  :root { --bg:#0f1117; --surface:#1a1d27; --surface2:#242836; --border:#2e3348; --text:#e2e4ed; --dim:#8b8fa3; --accent:#5b8def; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  [hidden] { display:none !important; }
+  html, body { margin:0; min-height:100%; background:var(--bg); color:var(--text);
+    font-family:-apple-system, system-ui, Roboto, sans-serif; font-size:20px;
+    user-select:none; -webkit-user-select:none; touch-action:manipulation; }
+  .page { max-width:720px; margin:0 auto; padding:12px; display:flex; flex-direction:column; gap:12px; }
+  .bar { display:flex; align-items:center; gap:12px; padding:10px 14px; background:var(--surface);
+    border:1px solid var(--border); border-radius:12px; font-size:18px; }
+  .bar .dot { width:14px; height:14px; border-radius:50%; background:var(--bad); flex:none; }
+  .bar .dot.ok { background:var(--ok); }
+  .bar .spacer { flex:1; }
+  body.dead .bar { border-color:var(--bad); }
+  body.dead button { opacity:.35; pointer-events:none; }
+  button { font:inherit; color:var(--text); background:var(--surface2); border:1px solid var(--border);
+    border-radius:14px; min-height:64px; padding:0 16px; font-weight:600; }
+  button:disabled { opacity:.45; }
+  button:active:not(:disabled) { filter:brightness(1.25); }
+  .row { display:flex; gap:12px; }
+  .row > * { flex:1; }
+  .estop { position:relative; overflow:hidden; min-height:110px; font-size:28px; letter-spacing:.06em;
+    background:var(--bad); border-color:#b91c1c; color:#fff; touch-action:none; }
+  .estop .fill { position:absolute; left:0; top:0; bottom:0; width:0; background:rgba(255,255,255,.35); pointer-events:none; }
+  .estop.holding .fill { width:100%; transition:width 1s linear; }
+  .estop .label { position:relative; }
+  .estop.stopped { background:#3a3d4a; border-color:var(--border); color:var(--dim); }
+  .primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .ok { background:#166534; border-color:#166534; color:#fff; }
+  .face { text-align:center; font-size:44px; font-weight:700; line-height:1; align-self:center; }
+  .face small { display:block; font-size:14px; color:var(--dim); font-weight:400; margin-bottom:4px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px;
+    display:flex; flex-direction:column; gap:12px; }
+  .card h2 { margin:0; font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); font-weight:600; }
+  .progress { min-height:64px; border-radius:14px; background:var(--surface2); border:1px solid var(--border);
+    position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; font-weight:600; }
+  .progress .fill { position:absolute; left:0; top:0; bottom:0; width:0; background:var(--accent); opacity:.5; }
+  .progress span { position:relative; }
+  .progress .failed { color:var(--warn); margin-left:8px; }
+  .small button { min-height:52px; font-size:17px; font-weight:500; }
+  .cabs { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; font-size:16px; }
+  .cab { display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--surface2); border-radius:10px; }
+  .cab .dot { width:12px; height:12px; border-radius:50%; background:var(--bad); flex:none; }
+  .cab .dot.ok { background:var(--ok); }
+  .cab .dot.warn { background:var(--warn); }
+  .cab .n { color:var(--dim); margin-left:auto; }
+  .toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#fff; color:#111;
+    padding:12px 20px; border-radius:12px; font-weight:600; display:none; max-width:90vw; text-align:center; z-index:9; }
+  .toast.error { background:var(--bad); color:#fff; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="bar">
+    <span class="dot" id="ws-dot"></span><span id="ws-label">Connecting…</span>
+    <span class="spacer"></span>
+    <span id="online">–/–</span>
+    <span id="bar-face">Face –</span>
+    <span id="bar-homing" hidden></span>
+  </div>
+
+  <div class="row">
+    <button type="button" class="estop" id="btn-estop"><span class="fill"></span><span class="label">HOLD TO E-STOP</span></button>
+    <button type="button" class="ok" id="btn-enable" hidden onclick="enableAll(this)">Enable all</button>
+  </div>
+
+  <div class="card">
+    <h2>Show</h2>
+    <div class="row">
+      <button type="button" id="btn-prev" onclick="act(this, 'show/prev', {}, () => null)">◀ Prev</button>
+      <div class="face"><small>face</small><span id="face">–</span></div>
+      <button type="button" id="btn-next" class="primary" onclick="act(this, 'show/next', {}, () => null)">Next ▶</button>
+    </div>
+    <button type="button" id="btn-auto" onclick="toggleAuto(this)">Start auto</button>
+  </div>
+
+  <div class="card">
+    <h2>Homing</h2>
+    <button type="button" id="btn-home" onclick="act(this, 'seek-home', {}, r => `Homing ${r.total} motors`)">Home the wall</button>
+    <div class="row" id="home-progress" hidden>
+      <div class="progress"><div class="fill" id="home-fill"></div><span id="home-text">0/0</span></div>
+      <button type="button" id="btn-cancel" onclick="act(this, 'seek-home/cancel', {}, () => 'Homing cancelled')">Cancel</button>
+    </div>
+  </div>
+
+  <div class="row small">
+    <button type="button" onclick="act(this, 'alarm-reset', {}, r => bulk('Alarm reset on', r))">Alarm reset</button>
+    <button type="button" onclick="act(this, 'reconnect', {}, () => 'Reconnected')">Reconnect</button>
+  </div>
+
+  <div class="card">
+    <h2>Cabinets</h2>
+    <div class="cabs" id="cabs"></div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const V = id => document.getElementById(id);
+let autoRunning = false;
+
+function toast(msg, err) {
+  const t = V('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (err ? ' error' : '');
+  t.style.display = 'block';
+  clearTimeout(t._t);
+  t._t = setTimeout(() => { t.style.display = 'none'; }, 2000);
+}
+
+function bulk(prefix, r) {
+  const k = (r.failed || []).length;
+  return `${prefix} ${r.done} motors` + (k ? `, ${k} failed` : '');
+}
+
+async function post(path, body) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 5000);
+  try {
+    const res = await fetch(`/api/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                             body: JSON.stringify(body), signal: ctl.signal });
+    return await res.json();
+  } catch {
+    return { error: 'No reply from controller' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// One request per button at a time: grey it out, map the reply to a toast, never show raw JSON.
+async function act(btn, path, body, okText) {
+  if (btn.disabled) return null;
+  btn.disabled = true;
+  try {
+    const r = await post(path, body);
+    const err = r.error || r.detail;
+    if (err) toast(String(err), true);
+    else { const t = okText(r); if (t) toast(t); }
+    return r;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ---- E-STOP: press and hold 1 s. A tap does nothing. ----
+const estop = V('btn-estop');
+let holdTimer = null;
+function holdStart(e) {
+  if (estop.disabled || estop.classList.contains('stopped')) return;
+  e.preventDefault();
+  estop.classList.add('holding');
+  holdTimer = setTimeout(fireEstop, 1000);
+}
+function holdEnd() {
+  clearTimeout(holdTimer);
+  holdTimer = null;
+  estop.classList.remove('holding');
+}
+async function fireEstop() {
+  holdEnd();
+  const r = await act(estop, 'estop', {}, () => 'Stopped all motors');
+  if (r && !r.error) {
+    estop.classList.add('stopped');
+    estop.querySelector('.label').textContent = 'STOPPED';
+    V('btn-enable').hidden = false;
+  }
+}
+estop.addEventListener('pointerdown', holdStart);
+for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) estop.addEventListener(ev, holdEnd);
+estop.addEventListener('contextmenu', e => e.preventDefault());
+
+// iCL-RS estop is a one-shot quick-stop with no latch, so "release" is just Enable all.
+async function enableAll(btn) {
+  const r = await act(btn, 'enable', {}, r => bulk('Enabled', r));
+  if (r && !r.error) {
+    estop.classList.remove('stopped');
+    estop.querySelector('.label').textContent = 'HOLD TO E-STOP';
+    btn.hidden = true;
+  }
+}
+
+async function toggleAuto(btn) {
+  if (autoRunning) await act(btn, 'show/auto/stop', {}, () => 'Auto stopped');
+  else await act(btn, 'show/auto/start', { hold_s: 5, direction: 1 }, () => 'Auto started');
+}
+
+// ---- Live status ----
+let ws = null, lastMsg = 0;
+function setAlive(ok) {
+  document.body.classList.toggle('dead', !ok);
+  V('ws-dot').className = 'dot' + (ok ? ' ok' : '');
+  V('ws-label').textContent = ok ? 'Connected' : 'Disconnected';
+}
+function connect() {
+  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+  ws.onopen = () => { lastMsg = Date.now(); setAlive(true); };
+  ws.onclose = () => { setAlive(false); setTimeout(connect, 2000); };
+  ws.onmessage = e => { lastMsg = Date.now(); setAlive(true); try { onStatus(JSON.parse(e.data)); } catch {} };
+}
+// Frames arrive 4-10x per second. 2 s of silence = show red and lock the buttons;
+// 6 s = the socket is half-open (tablet slept), close it so onclose reconnects.
+setInterval(() => {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const quiet = Date.now() - lastMsg;
+  if (quiet > 2000) setAlive(false);
+  if (quiet > 6000) { try { ws.close(); } catch {} }
+}, 1000);
+connect();
+
+function onStatus(d) {
+  const inv = d.inventory || [], motors = d.motors || {};
+  const sts = inv.map(m => motors[m.motor_key] || { offline: true });
+  V('online').textContent = `${sts.filter(s => !s.offline).length}/${inv.length}`;
+
+  const show = d.show || {};
+  const page = show.current_page || '–';
+  V('face').textContent = page;
+  V('bar-face').textContent = `Face ${page}`;
+  autoRunning = !!(show.auto && show.auto.running);
+  V('btn-auto').textContent = autoRunning ? 'Stop auto' : 'Start auto';
+  V('btn-auto').className = autoRunning ? 'ok' : '';
+  V('btn-prev').disabled = V('btn-next').disabled = !!show.busy;
+
+  const h = d.homing || {};
+  V('btn-home').hidden = !!h.active;
+  V('home-progress').hidden = !h.active;
+  V('bar-homing').hidden = !h.active;
+  if (h.active) {
+    const failed = (h.failed || []).length;
+    V('home-fill').style.width = (h.total ? Math.round(100 * h.done / h.total) : 0) + '%';
+    V('home-text').innerHTML = `${h.done}/${h.total}` + (failed ? `<span class="failed">${failed} failed</span>` : '');
+    V('bar-homing').textContent = `Homing ${h.done}/${h.total}`;
+  }
+  renderCabs(inv, motors);
+}
+
+// Rows are built once (when the cabinet count changes); dots and counts patch every frame.
+function renderCabs(inv, motors) {
+  const byCab = new Map();
+  for (const m of inv) {
+    if (!byCab.has(m.cabinet)) byCab.set(m.cabinet, []);
+    byCab.get(m.cabinet).push(m.motor_key);
+  }
+  const nums = [...byCab.keys()].sort((a, b) => a - b);
+  const el = V('cabs');
+  if (el.childElementCount !== nums.length) {
+    el.innerHTML = nums.map(n => `<div class="cab" id="cab-${n}"><span class="dot"></span>Cab ${n}<span class="n"></span></div>`).join('');
+  }
+  for (const n of nums) {
+    const sts = byCab.get(n).map(k => motors[k] || { offline: true });
+    const online = sts.filter(s => !s.offline).length;
+    const alarm = sts.filter(s => !s.offline && s.alarm).length;
+    const moving = sts.some(s => !s.offline && s.running);
+    const row = V(`cab-${n}`);
+    row.querySelector('.dot').className = 'dot' + ((online < sts.length || alarm) ? '' : (moving ? ' warn' : ' ok'));
+    row.querySelector('.n').textContent = `${online}/${sts.length}` + (alarm ? ` · ${alarm} alarm` : '');
+  }
+}
+</script>
+</body>
+</html>

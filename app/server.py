@@ -471,6 +471,12 @@ async def index():
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/operator")
+async def operator():
+    """Tablet page: a few big buttons, no per-motor controls."""
+    return FileResponse(STATIC_DIR / "operator.html")
+
+
 @app.get("/api/status")
 async def get_status():
     return await _build_status()

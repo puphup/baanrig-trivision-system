@@ -1,6 +1,7 @@
 """Operator-page routes: seek-home/cancel stops a run and clears state.
 Run: ./venv/bin/python test_operator_routes.py"""
 import asyncio
+import os
 from app import server as S
 from app.config import load_config
 
@@ -11,6 +12,9 @@ async def main():
     S.config = cfg
     await S._reload_runtime()
     try:
+        page = (await S.operator()).path
+        assert str(page).endswith("operator.html") and os.path.exists(page), page
+
         r = await S.seek_home_cancel()
         assert r == {"ok": True, "cancelled": False}, r
 
