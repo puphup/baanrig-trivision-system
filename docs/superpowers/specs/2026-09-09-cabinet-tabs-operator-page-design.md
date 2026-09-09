@@ -30,7 +30,8 @@ re-home the wall, step the show, clear alarms, and see per-cabinet health.
   and `highlightCab` toggle are removed.
 - Buttons: `Whole wall`, then `Cab 1` … `Cab 11`, in cabinet order from `mapInv.cabinets`.
 - Each cabinet button shows `online/total` (for example `21/21`). Button gets class `bad` when
-  any motor in the cabinet is offline or has an alarm, `warn` when any is not homed, otherwise plain.
+  any motor in the cabinet is offline or has an alarm, `warn` when any motor is moving, otherwise plain.
+  (Status frames carry no "homed" flag; moving is the only other live state worth a colour.)
   Counts patch every WebSocket tick; buttons are built once per inventory change.
 - Active tab is stored in `localStorage["trivision.tab"]` as `"wall"` or a cabinet number.
   Missing or invalid value → `wall`.
@@ -39,13 +40,14 @@ re-home the wall, step the show, clear alarms, and see per-cabinet health.
 
 - **Whole wall** — identical to today's map (viewBox `250 600 2850 1120`, all prisms visible).
 - **Cabinet N** — the SVG `viewBox` is set to the bounding box of that cabinet's motors
-  padded by 60 units on every side; aspect handled by the existing `preserveAspectRatio="xMidYMid meet"`.
+  padded by 60 units on every side (a straight cabinet such as Cab 11 has zero height before padding;
+  the padding alone makes the box valid); aspect handled by the existing `preserveAspectRatio="xMidYMid meet"`.
   Prisms of other cabinets get class `off` (`.prism.off { display: none }`); they keep receiving status patches,
   only visibility changes. Prism click still selects the motor into the focus panel.
 - Bounding box function: `cabinetBox(inv, n)` → `{x, y, w, h}` over inventory items with
   `cabinet === n` using their `x`, `y`; padding applied by the caller. Pure function, no DOM.
 - Below the map in cabinet view only: a table with columns
-  `Motor | ID | Position ° | Status | Alarm | Homed`, one row per motor in the cabinet, sorted by
+  `Motor | ID | Position ° | Face | Status | Alarm`, one row per motor in the cabinet, sorted by
   motor number. Row click selects the motor (same handler as prism click). Rows patch per tick;
   the table is rebuilt only on tab change or inventory change.
 
@@ -91,7 +93,7 @@ Toolbar, show panel, focus panel, sequence panel, Cabinets tab, all API calls.
    bar (`done/total`, failed count in amber) and a `Cancel` button (`/api/seek-home/cancel`).
 5. **Maintenance** — two half-width buttons: `Alarm reset`, `Reconnect`.
 6. **Cabinet list** — 11 rows: `Cab N`, `online/total`, alarm count if any, and a dot:
-   green all online + no alarm + all homed, amber any not homed, red any offline or alarm.
+   green all online + no alarm, amber any motor moving, red any offline or alarm.
    Read-only.
 
 ### 4.4 Behaviour
@@ -116,12 +118,14 @@ PIN or IP restriction.
 ## 5. Testing
 
 - `test_cabinet_box.py` — pure-Python port of the bounding-box rule against `motor_map.json`:
-  every cabinet box is non-empty, contains all of its motors, and the union of boxes lies
-  within the wall viewBox `250 600 2850 1120`. Prints `ok`.
-- `test_operator_routes.py` — FastAPI `TestClient` in simulation mode:
-  `GET /operator` is 200 with `text/html`; `POST /api/seek-home/cancel` returns
-  `{"ok": true, "cancelled": false}` when idle; after `POST /api/seek-home {}` it returns
-  `cancelled: true` and `/api/status` then reports `homing.active == false`. Prints `ok`.
+  every cabinet box has positive width or height, contains all of its motors, and the union of
+  unpadded boxes lies within the wall viewBox `250 600 2850 1120`. Prints `ok`.
+- `test_operator_routes.py` — calls the route handlers directly (like `test_pollers.py`; `httpx`
+  is not installed so `TestClient` is unavailable and adding it is not worth a dependency) with the
+  runtime built in simulation mode via `_reload_runtime()`: the `/operator` handler resolves to an
+  existing `operator.html`; `seek_home_cancel()` returns `{"ok": True, "cancelled": False}` when
+  idle; after `seek_home(SeekHomeRequest())` it returns `cancelled: True`, `homing_state["active"]`
+  is `False`, `_home_tasks` is empty, and a new seek-home can start. Prints `ok`.
 - Manual (simulation mode): switch tabs on the desktop page, confirm cabinet view zooms and table
   patches; open `/operator` in a 600×1024 window and exercise E-STOP → Enable all, Next/Prev,
   Auto start/stop, Home the wall → Cancel, Alarm reset, Reconnect.
