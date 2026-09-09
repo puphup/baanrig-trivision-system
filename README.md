@@ -28,8 +28,6 @@ console window appears with logs, and your default browser opens to
 
 - **Wall map** — all 231 prisms drawn at their real positions and apex angles.
   Colour = current face; grey = offline; amber = alarm. Click one to select it.
-- **Cabinet strip** — one button per cabinet showing `online/total`; click to
-  highlight that cabinet's motors on the map.
 - **Show controls** — Next / Previous / go-to-face, transition effect, speed,
   accel/decel and step timing, plus an auto-cycle with a hold time.
 - **Seek Home All** — drive-level DI3 home-switch homing across the whole wall;
@@ -55,8 +53,9 @@ over a WebSocket; a background poller per cabinet keeps the bus load flat.
 Open `http://<server-ip>:8000/operator` on the tablet and add it to the home screen
 (iPad: Share → Add to Home Screen; Android Chrome: menu → Add to Home screen) so it
 runs full-screen. It has only wall-wide controls: hold-to-fire E-STOP with Enable all,
-Prev / Next face, auto-cycle, Home the wall with Cancel, Alarm reset, Reconnect, and a
-per-cabinet health list. Anyone on the network with the URL can use it.
+Prev / Next face, auto-cycle, Home the wall with Cancel (which e-stops the drives —
+`seek_home()` is fire-and-forget so cancelling can't just stop tracking), Alarm reset,
+Reconnect, and a per-cabinet health list. Anyone on the network with the URL can use it.
 
 The desktop Control page now opens on a tab row: **Whole wall** plus **Cab 1 … Cab 11**.
 A cabinet tab zooms the map to that cabinet and lists its motors; the last tab used is

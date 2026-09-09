@@ -26,6 +26,11 @@ async def main():
         assert r == {"ok": True, "cancelled": True}, r
         assert S.homing_state["active"] is False and not S._home_tasks, S.homing_state
 
+        # seek_home() is fire-and-forget on the drive, so cancel e-stops the motors.
+        key = next(iter(S.drivers))
+        st = await S.drivers[key].read_status()
+        assert st["estopped"] is True, st
+
         # A cancelled run must not block the next one.
         r = await S.seek_home(S.SeekHomeRequest())
         assert r.get("ok"), r

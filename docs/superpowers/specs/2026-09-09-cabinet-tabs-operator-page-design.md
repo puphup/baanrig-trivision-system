@@ -60,8 +60,10 @@ Toolbar, show panel, focus panel, sequence panel, Cabinets tab, all API calls.
 ### 4.1 Serving
 
 - `GET /operator` returns `static/operator.html` (same static-dir lookup as `/`).
-- `POST /api/seek-home/cancel` → calls `_stop_homing()`; returns `{"ok": true, "cancelled": <bool>}`
-  where `cancelled` is whether a run was active. Always 200.
+- `POST /api/seek-home/cancel` → calls `_stop_homing()`, then `emergency_stop_all()` if a run
+  was active, because `ICLRSDriver.seek_home()` is fire-and-forget and cannot be cancelled from
+  Python; returns `{"ok": true, "cancelled": <bool>}` where `cancelled` is whether a run was
+  active. Always 200.
 - No other server changes. Every other button uses an existing route:
   `/api/estop`, `/api/enable`, `/api/seek-home` (body `{}`), `/api/show/prev|next`,
   `/api/show/auto/start|stop`, `/api/alarm-reset` (body `{}`), `/api/reconnect`.
@@ -102,10 +104,12 @@ Toolbar, show panel, focus panel, sequence panel, Cabinets tab, all API calls.
   `motors`, `inventory`, `show`, `homing`; the page derives everything from those.
 - Any button greys out while its request is in flight; a toast (2 s) shows the result.
 - Fetch timeout 5 s → toast `No reply from controller`, button re-enabled.
-- Socket closed for > 2 s → status bar red, all buttons disabled; reconnect every 2 s.
+- Socket closed for > 2 s → status bar red, all buttons disabled except E-STOP, which
+  stays live (its POST does not depend on the WebSocket); reconnect every 2 s.
 - Response mapping to toast text:
   `estop` → `Stopped all motors`; `enable` → `Enabled N motors` (+ `, K failed`);
   `seek-home` ok → `Homing N motors`; `seek-home` error → the server's `error` string verbatim;
+  `seek-home/cancel` → `Homing stopped`;
   `alarm-reset` → `Alarm reset on N motors` (+ `, K failed`); `reconnect` → `Reconnected`;
   `show/*` with `error` → that string verbatim.
 - Page never shows raw JSON.

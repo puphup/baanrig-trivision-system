@@ -23,6 +23,7 @@
   .bar .spacer { flex:1; }
   body.dead .bar { border-color:var(--bad); }
   body.dead button { opacity:.35; pointer-events:none; }
+  body.dead button.estop { pointer-events:auto; opacity:1; }
   button { font:inherit; color:var(--text); background:var(--surface2); border:1px solid var(--border);
     border-radius:14px; min-height:64px; padding:0 16px; font-weight:600; }
   button:disabled { opacity:.45; }
@@ -72,6 +73,8 @@
 
   <div class="row">
     <button type="button" class="estop" id="btn-estop"><span class="fill"></span><span class="label">HOLD TO E-STOP</span></button>
+  </div>
+  <div class="row">
     <button type="button" class="ok" id="btn-enable" hidden onclick="enableAll(this)">Enable all</button>
   </div>
 
@@ -90,7 +93,7 @@
     <button type="button" id="btn-home" onclick="act(this, 'seek-home', {}, r => `Homing ${r.total} motors`)">Home the wall</button>
     <div class="row" id="home-progress" hidden>
       <div class="progress"><div class="fill" id="home-fill"></div><span id="home-text">0/0</span></div>
-      <button type="button" id="btn-cancel" onclick="act(this, 'seek-home/cancel', {}, () => 'Homing cancelled')">Cancel</button>
+      <button type="button" id="btn-cancel" onclick="act(this, 'seek-home/cancel', {}, () => 'Homing stopped')">Cancel</button>
     </div>
   </div>
 
@@ -158,6 +161,7 @@ async function act(btn, path, body, okText) {
 const estop = V('btn-estop');
 let holdTimer = null;
 function holdStart(e) {
+  if (holdTimer) return;
   if (estop.disabled || estop.classList.contains('stopped')) return;
   e.preventDefault();
   estop.classList.add('holding');
@@ -207,7 +211,7 @@ function connect() {
   ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
   ws.onopen = () => { lastMsg = Date.now(); setAlive(true); };
   ws.onclose = () => { setAlive(false); setTimeout(connect, 2000); };
-  ws.onmessage = e => { lastMsg = Date.now(); setAlive(true); try { onStatus(JSON.parse(e.data)); } catch {} };
+  ws.onmessage = e => { lastMsg = Date.now(); setAlive(true); try { onStatus(JSON.parse(e.data)); } catch (e) { console.error(e); } };
 }
 // Frames arrive 4-10x per second. 2 s of silence = show red and lock the buttons;
 // 6 s = the socket is half-open (tablet slept), close it so onclose reconnects.
@@ -232,6 +236,10 @@ function onStatus(d) {
     estop.classList.add('stopped');
     estop.querySelector('.label').textContent = 'STOPPED';
   }
+  if (!anyEstopped && !anyDisabled && estop.classList.contains('stopped')) {
+    estop.classList.remove('stopped');
+    estop.querySelector('.label').textContent = 'HOLD TO E-STOP';
+  }
   V('btn-enable').hidden = !(estop.classList.contains('stopped') || anyEstopped || anyDisabled);
 
   const show = d.show || {};
@@ -241,7 +249,9 @@ function onStatus(d) {
   autoRunning = !!(show.auto && show.auto.running);
   V('btn-auto').textContent = autoRunning ? 'Stop auto' : 'Start auto';
   V('btn-auto').className = autoRunning ? 'ok' : '';
-  V('btn-prev').disabled = V('btn-next').disabled = !!show.busy;
+  const homing = !!(d.homing || {}).active;
+  V('btn-prev').disabled = V('btn-next').disabled = !!show.busy || homing;
+  V('btn-auto').disabled = homing;
 
   const h = d.homing || {};
   V('btn-home').hidden = !!h.active;
@@ -265,8 +275,10 @@ function renderCabs(inv, motors) {
   }
   const nums = [...byCab.keys()].sort((a, b) => a - b);
   const el = V('cabs');
-  if (el.childElementCount !== nums.length) {
+  const sig = nums.join(',');
+  if (el.dataset.sig !== sig) {
     el.innerHTML = nums.map(n => `<div class="cab" id="cab-${n}"><span class="dot"></span>Cab ${n}<span class="n"></span></div>`).join('');
+    el.dataset.sig = sig;
   }
   for (const n of nums) {
     const sts = byCab.get(n).map(k => motors[k] || { offline: true });

@@ -591,10 +591,16 @@ async def seek_home(req: SeekHomeRequest):
 
 @app.post("/api/seek-home/cancel")
 async def seek_home_cancel():
-    """Operator-page Cancel. Always 200 so the tablet can press it any time."""
+    """Operator-page Cancel. Always 200 so the tablet can press it any time.
+    ICLRSDriver.seek_home() is fire-and-forget: the drive keeps homing on its own
+    once started, so cancelling the Python-side run can't stop the motors — we
+    e-stop them instead."""
     was_active = homing_state["active"]
     await _stop_homing()
+    if was_active:
+        await sequencer.emergency_stop_all()
     return {"ok": True, "cancelled": was_active}
+
 
 async def _seek_home_cabinet(keys: list[str]) -> None:
     zero_tasks = []
