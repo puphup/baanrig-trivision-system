@@ -26,6 +26,8 @@ console window appears with logs, and your default browser opens to
 
 **Control tab**
 
+Open with `?touch=1` (or on any coarse-pointer device) for **touch mode**: 48 px targets, press feedback, a "Sent ✓" toast per command, and motor labels drawn under the prisms in cabinet tabs.
+
 - **Wall map** — all 231 prisms drawn at their real positions and apex angles.
   Colour = current face; grey = offline; amber = alarm. Click one to select it.
 - **Show controls** — Next / Previous / go-to-face, transition effect, speed,

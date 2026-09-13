@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Trivision kiosk
+Exec=/home/bannrig/trivision/deploy/kiosk.sh
+X-GNOME-Autostart-enabled=true

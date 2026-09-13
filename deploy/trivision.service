@@ -1,0 +1,13 @@
+# User service: ~/.config/systemd/user/trivision.service  (see deploy/README.md)
+[Unit]
+Description=Trivision wall controller
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/trivision
+ExecStart=%h/trivision/venv/bin/uvicorn app.server:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

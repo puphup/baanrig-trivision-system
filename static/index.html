@@ -277,6 +277,25 @@
   .cab-table tr.selected td { color:var(--accent); }
   .cab-table tr.offline td { color:var(--text-dimmer); }
   .cab-table tr.alarm td.alarm { color:#ef4444; }
+  .plabel { font-size:8px; font-weight:600; fill:#fff; text-anchor:middle; dominant-baseline:middle; pointer-events:none; paint-order:stroke; stroke:#000; stroke-width:2px; display:none; }
+  body.tab-cab .plabel:not(.off) { display:block; }
+
+  /* ---- touch mode: ?touch=1 or a coarse pointer adds body.touch ---- */
+  /* ponytail: one class scales the page to finger sizes instead of a second stylesheet */
+  button:active:not(:disabled), .tab:active, .pip:active, .cab-btn:active { transform:scale(.96); filter:brightness(1.3); }
+  body.touch { font-size:16px; }
+  body.touch button, body.touch .tab, body.touch .cab-btn, body.touch input, body.touch select { min-height:48px; padding:8px 16px; font-size:.9rem; }
+  body.touch input[type="checkbox"] { width:28px; height:28px; min-height:0; }
+  body.touch .btn-sm { min-height:40px; font-size:.8rem; }
+  body.touch .pip { width:48px; height:48px; font-size:1rem; }
+  body.touch .badge { font-size:.8rem; padding:6px 12px; }
+  body.touch label, body.touch .legend { font-size:.8rem; }
+  body.touch .cab-table td, body.touch .cab-table th { padding:12px 10px; font-size:.9rem; }
+  body.touch .cab-table tbody tr:hover td { background:inherit; }
+  body.touch #wall-map { max-height:70vh; }
+  body.touch .jog button { min-height:72px; font-size:1.1rem; }
+  body.touch .map-row { grid-template-columns:1fr; }          /* focus panel full width under the map: 3 columns fit, page scrolls only vertically */
+  body.touch .header select { width:auto; }
   .map-row { display:grid; grid-template-columns: 1fr; gap:12px; }
   @media (min-width: 1400px) { .map-row { grid-template-columns: 1fr 360px; } .map-row > .grid-card { order:-1; } }
 </style>
@@ -418,7 +437,7 @@
         <div class="focus-section">
           <h3>Jog (hold)</h3>
           <div class="field"><label for="mv-jog-speed">Jog rpm <span class="hint">1…40</span></label><input type="number" id="mv-jog-speed" value="15" min="1" max="40"></div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+          <div class="jog" style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
             <button type="button"
               onmousedown="startJog(-1)" onmouseup="stopJog()" onmouseleave="stopJog()"
               ontouchstart="event.preventDefault(); startJog(-1)" ontouchend="stopJog()" ontouchcancel="stopJog()">◀ Rev</button>
@@ -652,7 +671,8 @@ function renderMap() {
        onclick="selectMotor('${m.motor_key}')">
       <polygon points="0,-16 14,10 -14,10" ${m.estimated ? 'stroke-dasharray="5 4"' : ''}></polygon>
       <title>${m.label} · Cab ${m.cabinet} · ID ${m.slave_id}</title>
-    </g>`).join('');
+    </g>
+    <text class="plabel" x="${m.x}" y="${m.y + 1}" data-cab="${m.cabinet}">${m.motor}</text>`).join('');
   V('grid-count').textContent = `${ms.length} motors`;
   if (ms.length && (!selectedKey || !ms.find(m => m.motor_key === selectedKey))) {
     selectMotor(ms[0].motor_key);
@@ -737,7 +757,8 @@ function applyTab() {
     if (!b) { selectTab('wall'); return; }     // stale localStorage after a map change
     svg.setAttribute('viewBox', `${b.x - CAB_PAD} ${b.y - CAB_PAD} ${b.w + 2 * CAB_PAD} ${b.h + 2 * CAB_PAD}`);
   }
-  for (const g of $$('.prism')) g.classList.toggle('off', activeTab !== 'wall' && String(activeTab) !== g.dataset.cab);
+  document.body.classList.toggle('tab-cab', activeTab !== 'wall');   // shows .plabel (hover <title> is unreachable on touch)
+  for (const g of $$('.prism, .plabel')) g.classList.toggle('off', activeTab !== 'wall' && String(activeTab) !== g.dataset.cab);
   renderCabinetTable();
   if (lastData) { updateMap(lastData); updateCabinetTabs(lastData); }
 }
@@ -872,7 +893,11 @@ function renderSequenceRows(d) {
 // ============================ API helpers ============================
 async function api(path, body = {}) {
   const res = await fetch(`/api/${path}`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
-  return res.json();
+  const r = await res.json();
+  // ponytail: tap confirmation for touch mode; callers with their own toast simply overwrite this one
+  if (r && r.error) showToast(r.error, 'danger');
+  else if (document.body.classList.contains('touch')) showToast('Sent ✓', 'success');
+  return r;
 }
 async function get(path) {
   const res = await fetch(`/api/${path}`);
@@ -1138,6 +1163,7 @@ function showToast(msg, type) {
 }
 
 // ============================ Init ============================
+if (new URLSearchParams(location.search).get('touch') === '1' || matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
 loadTab();
 loadShowEffects();
 loadMotors();

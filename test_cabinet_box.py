@@ -30,4 +30,5 @@ assert cabinet_box(motors, 99) is None
 html = open("static/index.html").read()
 assert "function cabinetBox(inv, n)" in html
 assert "trivision.tab" in html
+assert "body.touch" in html and "plabel" in html   # touch mode + prism labels
 print("ok")
