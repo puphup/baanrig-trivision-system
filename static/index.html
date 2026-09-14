@@ -22,6 +22,16 @@
     --yellow: #facc15;
     --radius: 8px;
   }
+  /* Light theme: same variables, swapped. Toggle in the header, remembered per browser. */
+  body.light {
+    --bg: #f3f4f8; --surface: #ffffff; --surface2: #e9ebf2; --surface3: #d8dbe6; --border: #c9cdda;
+    --text: #1a1d27; --text-dim: #4b5064; --text-dimmer: #8b8fa3;
+    --accent: #2f6fe4; --accent-dim: #1d4fb0; --green: #059669; --yellow: #ca8a04;
+  }
+  body.light .badge-sim { background: #d7f5e6; border-color: #86d9b5; }
+  body.light .badge-hw { background: #dbe7fb; border-color: #9dbdf2; }
+  body.light .cab-btn.active { outline-color: var(--text); }
+  body.light .prism polygon { stroke: #444; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
@@ -292,8 +302,16 @@
   body.touch label, body.touch .legend { font-size:.8rem; }
   body.touch .cab-table td, body.touch .cab-table th { padding:12px 10px; font-size:.9rem; }
   body.touch .cab-table tbody tr:hover td { background:inherit; }
-  body.touch #wall-map { max-height:70vh; }
   body.touch .jog button { min-height:72px; font-size:1.1rem; }
+  body.touch .header { padding:4px 14px; }
+  body.touch .toolbar { padding:6px 12px; }
+  body.touch .show-panel { display:flex; flex-wrap:wrap; align-items:flex-end; gap:8px 16px; }
+  body.touch .show-row { flex:1 0 100%; }
+  body.touch .show-detail { display:flex; flex:1; gap:10px; margin-top:0; }
+  body.touch .show-detail .field { flex:1; }
+  body.touch .show-auto-row { margin-top:0; padding-top:0; border-top:none; }
+  body.touch .show-auto-row .field { margin-bottom:0; }
+  body.touch #wall-map { max-height:calc(100vh - 450px); }   /* header + toolbar + show + tabs ≈ 450 px */
   body.touch .map-row { grid-template-columns:1fr; }          /* focus panel full width under the map: 3 columns fit, page scrolls only vertically */
   body.touch .header select { width:auto; }
   .map-row { display:grid; grid-template-columns: 1fr; gap:12px; }
@@ -312,6 +330,9 @@
     </div>
   </div>
   <div>
+    <span id="clock" style="font-size:0.78rem; color:var(--text-dim); margin-right:10px;"></span>
+    <span id="host-ip" style="font-size:0.78rem; color:var(--text-dim); margin-right:10px;"></span>
+    <button type="button" class="btn-sm" id="btn-theme" onclick="toggleTheme()" style="margin-right:10px;">Light</button>
     <span id="motor-count" class="badge badge-sim">0 motors</span>
     <select id="mode-select" class="badge badge-sim" title="Hardware (TCP) or in-process simulation of the whole wall" onchange="setMode(this.value)"><option value="tcp">TCP</option><option value="simulation">SIM</option></select>
     <span id="ws-dot" class="status-dot dot-err"></span>
@@ -1164,6 +1185,18 @@ function showToast(msg, type) {
 
 // ============================ Init ============================
 if (new URLSearchParams(location.search).get('touch') === '1' || matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch');
+function applyTheme(light) {
+  document.body.classList.toggle('light', light);
+  V('btn-theme').textContent = light ? 'Dark' : 'Light';
+}
+function toggleTheme() {
+  const light = !document.body.classList.contains('light');
+  try { localStorage.setItem('trivision.theme', light ? 'light' : 'dark'); } catch (e) {}
+  applyTheme(light);
+}
+try { applyTheme((new URLSearchParams(location.search).get('theme') || localStorage.getItem('trivision.theme')) === 'light'); } catch (e) {}
+setInterval(() => { V('clock').textContent = new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'medium' }); }, 1000);
+get('config').then(c => { V('host-ip').textContent = c.ip ? `IP ${c.ip}` : ''; }).catch(() => {});
 loadTab();
 loadShowEffects();
 loadMotors();

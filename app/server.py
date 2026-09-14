@@ -11,6 +11,7 @@ on different gateways doesn't collide.
 
 import asyncio
 import os
+import socket
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -994,9 +995,22 @@ async def write_reg(motor_key: str, addr: str, req: RegWrite):
     return {"addr": f"0x{a:04X}", "values": regs, "saved": req.save}
 
 
+def _local_ip() -> str:
+    # ponytail: UDP "connect" picks the default-route interface without sending anything
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("10.255.255.255", 1))
+        return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+    finally:
+        s.close()
+
+
 @app.get("/api/config")
 async def get_config():
     return {
+        "ip": _local_ip(),
         **{k: config.get(k) for k in
            ("mode", "map", "use_spare", "motion", "motor_defaults", "server")},
         "limits": {
