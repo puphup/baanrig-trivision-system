@@ -26,7 +26,8 @@ console window appears with logs, and your default browser opens to
 
 **Control tab**
 
-Open with `?touch=1` (or on any coarse-pointer device) for **touch mode**: 48 px targets, press feedback, a "Sent ✓" toast per command, and motor labels drawn under the prisms in cabinet tabs.
+Open with `?touch=1` (or on any coarse-pointer device) for **touch mode**: 48 px targets, press feedback, a "Sent ✓" toast per command, and motor numbers drawn inside the prisms in cabinet tabs.
+The header shows the system clock and the PC's IP address; the **Light** button switches to a light theme (remembered per browser, or force it with `?theme=light`).
 
 - **Wall map** — all 231 prisms drawn at their real positions and apex angles.
   Colour = current face; grey = offline; amber = alarm. Click one to select it.
@@ -112,6 +113,26 @@ push, and attaches it to a GitHub Release on every tag.
 See [BUILD_WINDOWS.md](BUILD_WINDOWS.md). TL;DR: install Python 3.11+, double-click
 `build_windows.bat`, find the output in `dist\Baanrig-Trivision.exe`.
 
+## Touch-screen kiosk PC (Linux)
+
+The `deploy/` folder holds what the Ubuntu control station uses: `trivision.service`
+(user systemd unit for uvicorn on port 8000), `trivision-kiosk.desktop` +
+`kiosk.sh` (Firefox `--kiosk http://localhost:8000/?touch=1`, relaunched if
+closed) and `root-setup.sh` (one-time GDM auto-login + linger, needs sudo).
+
+To update a running station:
+
+```
+rsync -az --delete --exclude venv --exclude .git --exclude "Doc and info" ./ bannrig@<pc-ip>:~/trivision/
+ssh bannrig@<pc-ip> 'systemctl --user restart trivision.service; sleep 3; pkill -x firefox'
+```
+
+Restarting the service does not restart Firefox; killing Firefox makes `kiosk.sh`
+relaunch it. The pages are served with `Cache-Control: no-cache` so Firefox
+revalidates on every launch. If a station still shows an old page, kill Firefox
+and delete `~/snap/firefox/common/.cache/mozilla/firefox/<profile>/cache2`
+before it relaunches.
+
 ## Configuration
 
 `config.json`: `mode` (tcp|simulation), `map` (motor_map.json or bench_map.json),
@@ -133,7 +154,7 @@ PR0 register layout.
 ```
 app/                    FastAPI server, show controller, sequencer, simulator,
                         Modbus interface, per-family motor drivers
-static/index.html       Single-file dark-themed web UI
+static/index.html       Single-file web UI (dark/light theme, touch mode)
 static/operator.html    Tablet page (/operator): E-STOP, homing, show, cabinet health
 test_*.py               Plain assert scripts: ./venv/bin/python test_<name>.py
 motor_map.json          The wall: 11 cabinets + 231 motors (source of truth)
@@ -146,6 +167,7 @@ Pysim.spec              PyInstaller build descriptor
 build_windows.bat       One-click local Windows build
 .github/workflows/      Cloud Windows build (Actions)
 config.json             User-editable settings
+deploy/                 Linux kiosk PC: systemd unit, Firefox kiosk autostart, root setup
 ```
 
 ## License

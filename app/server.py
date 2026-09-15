@@ -467,15 +467,19 @@ async def favicon():
     )
 
 
+# ponytail: no-cache so the kiosk browser always revalidates after a deploy
+_NO_CACHE = {"Cache-Control": "no-cache"}
+
+
 @app.get("/")
 async def index():
-    return FileResponse(STATIC_DIR / "index.html")
+    return FileResponse(STATIC_DIR / "index.html", headers=_NO_CACHE)
 
 
 @app.get("/operator")
 async def operator():
     """Tablet page: a few big buttons, no per-motor controls."""
-    return FileResponse(STATIC_DIR / "operator.html")
+    return FileResponse(STATIC_DIR / "operator.html", headers=_NO_CACHE)
 
 
 @app.get("/api/status")
