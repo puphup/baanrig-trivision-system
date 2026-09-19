@@ -348,8 +348,8 @@
     <div class="toolbar">
       <button type="button" class="btn-danger btn-lg" onclick="doEstop()">STOP ALL</button>
       <button type="button" id="btn-enable-all" class="btn-primary" onclick="doToggleEnableAll()">Enable All</button>
-      <button type="button" onclick="doSeekHomeAll()" title="Run the DI3 home-switch homing on every motor (cabinets in parallel). Show resets to face 1 when done.">Seek Home All</button>
-      <button type="button" onclick="doSetHomeAll()" title="Make current position the drive origin, saved to EEPROM. Resets show to face 1.">Set Home All</button>
+      <button type="button" class="btn-primary" onclick="doHomeAll()" title="Software home: every motor turns the short way (max half a turn) onto face 1. Enables drives that boot disabled.">Home the Wall</button>
+      <button type="button" onclick="doSetHomeAll()" title="Make the CURRENT position home for every motor (remembered across power cycles). Resets show to face 1.">Set Home All</button>
       <button type="button" onclick="doSave()">Save Params</button>
       <button type="button" id="btn-reconnect" onclick="doReconnect()" title="Rebuild gateway connections and the live status link.">Reconnect</button>
       <span class="spacer"></span>
@@ -477,7 +477,6 @@
             <button type="button" onclick="doHome()">Home</button>
             <button type="button" onclick="doSetZero()" title="Software display offset only">Set Zero</button>
             <button type="button" onclick="doSetHome()" title="Store current position as drive origin, saved to EEPROM">Set Home</button>
-            <button type="button" onclick="doSeekHome()" title="Run the drive's homing routine to the DI3 home switch (iCL-RS, after --setup-iclrs-home)">Seek Home</button>
             <button type="button" class="btn-warning" onclick="doAlarmReset()">Reset Alarm</button>
           </div>
         </div>
@@ -818,14 +817,8 @@ function updateHoming(h) {
   el.textContent = `homing ${h.done}/${h.total}` + (h.failed.length ? ` (${h.failed.length} failed)` : '');
 }
 
-async function doSeekHomeAll() {
-  const r = await api('seek-home', {});
-  if (r.error) showToast(r.error, 'error'); else showToast(`Seek Home All: ${r.total} motors homing…`, 'success');
-}
-async function doSeekHomeCab(n) {
-  const r = await api('seek-home', { cabinet: n });
-  if (r.error) showToast(r.error, 'error'); else showToast(`Cabinet ${n}: ${r.total} motors homing…`, 'success');
-}
+// ponytail: Seek Home buttons removed until DI3 home switches are wired —
+// without a switch the drive spins looking for one. /api/seek-home still exists.
 
 // Selected-motor panel show/hide, persisted across refreshes.
 function applyFocusCollapsed() {
@@ -957,9 +950,12 @@ function doEnable()   { if (selectedKey) api('enable',   { motor_key: selectedKe
 function doDisable()  { if (selectedKey) api('disable',  { motor_key: selectedKey }); }
 function doHome()     { if (selectedKey) api('home',     { motor_key: selectedKey, speed_rpm: 10, accel: 200, decel: 200 }); }
 function doSetZero()  { if (selectedKey) api('set-zero', { motor_key: selectedKey }); }
-function doSeekHome() { if (selectedKey) { api('seek-home', { motor_key: selectedKey }); showToast(`Seek Home: ${selectedKey} homing to switch…`, 'success'); } }
 function doSetHome()  { if (selectedKey) { api('set-home', { motor_key: selectedKey }); showToast(`Set Home: ${selectedKey} origin saved to drive.`, 'success'); } }
-async function doSetHomeAll() { bulkToast('Set Home All', await api('set-home', {}), '(saved to EEPROM; show reset to face 1)'); }
+async function doSetHomeAll() {
+  if (!confirm('Make the CURRENT position home for ALL motors? Only do this when every prism is squared on face 1.')) return;
+  bulkToast('Set Home All', await api('set-home', {}), '(remembered; show reset to face 1)');
+}
+async function doHomeAll() { bulkToast('Home the Wall', await api('home', { speed_rpm: 3, accel: 500, decel: 500 }), '(turning the short way to face 1)'); }
 function doAlarmReset(){ if (selectedKey) api('alarm-reset', { motor_key: selectedKey }); }
 function doEstop()    { api('estop'); }
 async function doSave()     { bulkToast('Save Params', await api('save', {})); }
@@ -1110,8 +1106,7 @@ function renderCabinets(d) {
       <td><input type="checkbox" ${usingSpare ? 'checked' : ''} ${c.spare ? '' : 'disabled'} onchange="toggleSpare(${c.cabinet}, this.checked)"> ${c.spare || '—'}</td>
       <td>${c.motor_keys.length}</td>
       <td id="cab-online-${c.cabinet}">—</td>
-      <td><button type="button" onclick="doSeekHomeCab(${c.cabinet})">Seek Home</button>
-          <button type="button" class="btn-warning" onclick="doCommission(${c.cabinet})" title="Fresh drives only: DI1 off, DI3 home switch, homing 3/1 rpm, save. Power-cycle the cabinet afterwards.">Commission</button></td>
+      <td><button type="button" class="btn-warning" onclick="doCommission(${c.cabinet})" title="Fresh drives only: DI1 off, DI3 home switch, homing 3/1 rpm, save. Power-cycle the cabinet afterwards.">Commission</button></td>
     </tr>`;
   }).join('');
   updateCabinetCounts(d);

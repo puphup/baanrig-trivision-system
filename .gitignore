@@ -17,3 +17,4 @@ windows-build/
 .DS_Store
 .vscode/
 .idea/
+home_state.json

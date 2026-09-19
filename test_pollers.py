@@ -45,6 +45,31 @@ async def main():
     c = await S.commission(S.CabinetRequest(cabinet=2))
     assert c["done"] == 0 and c["failed"][0]["motor_key"] == "gw2.1"
     await S._stop_pollers()
+
+    # --- software-home memory: a drive that comes up reading 0 (power cycle) is
+    # re-based to its remembered angle; Home then moves it the short way to face 1.
+    import json, tempfile, pathlib
+    S._HOME_MEM_PATH = pathlib.Path(tempfile.mkdtemp()) / "home_state.json"
+    sim.position = 0.0; sim2.position = 500.0; sim.start()
+    S.zero_offsets = {}
+    S.home_memory = {"gw1.1": 3333, "gw2.1": 40000}     # 120 deg on gw1 (sim: 10000 ppr), gw2 stale
+    await S._start_pollers()
+    await asyncio.sleep(0.3)
+    assert S.zero_offsets["gw1.1"] == -3333 and (await S._read_one_status("gw1.1"))["position_pulses"] == 3333
+    assert S.zero_offsets["gw2.1"] == 500 - 40000     # startup with no offset yet: trust memory
+    r = await S.home_motor(S.HomeRequest(motor_key="gw1.1", speed_rpm=60))
+    assert r["done"] == 1, r
+    await asyncio.sleep(1.5)
+    st = await S._read_one_status("gw1.1")
+    assert abs(st["position_deg"]) < 1.0 and abs(sim.position) > 1.0, (st, sim.position)   # went home, not unwound
+    assert S.home_memory["gw1.1"] == st["position_pulses"] and S._home_mem_dirty
+    S._save_home_memory()
+    assert json.loads(S._HOME_MEM_PATH.read_text())["gw1.1"] == st["position_pulses"]
+    # a comms glitch (offline then online with the counter NOT at 0) keeps the offset
+    S._seen_online.discard("gw2.1"); before = S.zero_offsets["gw2.1"]
+    await asyncio.sleep(0.3)
+    assert S.zero_offsets["gw2.1"] == before
+    await S._stop_pollers(); await sim.stop()
     print("ok")
 
 asyncio.run(main())

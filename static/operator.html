@@ -90,7 +90,7 @@
 
   <div class="card">
     <h2>Homing</h2>
-    <button type="button" id="btn-home" onclick="act(this, 'seek-home', {}, r => `Homing ${r.total} motors`)">Home the wall</button>
+    <button type="button" id="btn-home" onclick="act(this, 'home', {speed_rpm: 3, accel: 500, decel: 500}, r => `Homing ${r.done}/${r.total} motors (shortest way to face 1)`)" title="Software home: each motor turns the short way onto face 1 (no home sensor needed)">Home the wall</button>
     <div class="row" id="home-progress" hidden>
       <div class="progress"><div class="fill" id="home-fill"></div><span id="home-text">0/0</span></div>
       <button type="button" id="btn-cancel" onclick="act(this, 'seek-home/cancel', {}, () => 'Homing stopped')">Cancel</button>

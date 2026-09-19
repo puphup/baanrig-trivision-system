@@ -10,6 +10,7 @@ on different gateways doesn't collide.
 """
 
 import asyncio
+import json
 import os
 import socket
 import time
@@ -22,7 +23,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from .config import (
-    load_config, save_config,
+    load_config, save_config, CONFIG_PATH,
     MAX_TOTAL_MOTORS, MAX_GATEWAYS, MAX_MOTORS_PER_GATEWAY,
     motor_key as build_motor_key, motor_label,
     driver_type_for,
@@ -51,6 +52,19 @@ show: ShowController = ShowController()
 ws_clients: set[WebSocket] = set()
 # Software zero offsets per motor key (encoder pulses)
 zero_offsets: dict[str, int] = {}
+# Software-home memory: last DISPLAYED position per motor key (pulses), persisted
+# next to config.json. The iCL-RS encoder is single-turn incremental, so a
+# power-cycled drive reads 0 wherever the shaft is; this is how the app still
+# knows which face it was on (no home sensor needed). ponytail: wrong by the
+# unfinished travel if power drops mid-move, or if a prism is turned by hand
+# while unpowered — only a DI3 sensor could notice; fix = Set Home All.
+_HOME_MEM_PATH = CONFIG_PATH.parent / "home_state.json"
+try:
+    home_memory: dict[str, int] = {k: int(v) for k, v in json.loads(_HOME_MEM_PATH.read_text()).items()}
+except Exception:
+    home_memory = {}
+_home_mem_dirty = False
+_seen_online: set[str] = set()      # keys the poller has seen online since startup/offline
 # Latest raw status per motor key, written by the per-cabinet pollers.
 status_cache: dict[str, dict] = {}
 _poll_tasks: list[asyncio.Task] = []
@@ -280,9 +294,47 @@ async def _poll_cabinet(keys: list[str]) -> None:
                 st = dict(_OFFLINE_ST)
             if not st.get("offline"):
                 ok += 1
+                _remember_position(key, st)
+            else:
+                _seen_online.discard(key)
             status_cache[key] = st
             await asyncio.sleep(0)
         await asyncio.sleep(interval if ok else 0.25)
+
+
+def _remember_position(key: str, st: dict) -> None:
+    """Software-home memory (see ``home_memory``). First sight of a drive —
+    at startup, or back from offline with its counter at 0 (a power cycle) —
+    re-bases the display offset so the motor still shows the remembered
+    angle. Then keeps the memory current; the flush loop writes it to disk."""
+    global _home_mem_dirty
+    raw = int(st.get("position_pulses", 0))
+    if key not in _seen_online:
+        _seen_online.add(key)
+        if key in home_memory and key not in sim_motors and (raw == 0 or key not in zero_offsets):
+            zero_offsets[key] = raw - home_memory[key]
+    disp = raw - zero_offsets.get(key, 0)
+    if home_memory.get(key) != disp:
+        home_memory[key] = disp
+        _home_mem_dirty = True
+
+
+def _save_home_memory() -> None:
+    tmp = _HOME_MEM_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(home_memory))
+    os.replace(tmp, _HOME_MEM_PATH)
+
+
+async def _home_mem_flush_loop() -> None:
+    global _home_mem_dirty
+    while True:
+        await asyncio.sleep(1.0)
+        if _home_mem_dirty:
+            _home_mem_dirty = False
+            try:
+                _save_home_memory()
+            except Exception as e:
+                print(f"[home-memory] save failed: {e}")
 
 
 async def _start_pollers() -> None:
@@ -301,6 +353,7 @@ async def _stop_pollers() -> None:
         await asyncio.gather(*tasks, return_exceptions=True)
     _poll_tasks.clear()
     status_cache.clear()
+    _seen_online.clear()
 
 
 async def _stop_homing() -> None:
@@ -334,9 +387,13 @@ async def lifespan(app: FastAPI):
 
     broadcast_task = asyncio.create_task(_broadcast_loop())
     reconnect_task = asyncio.create_task(_reconnect_loop())
+    home_mem_task = asyncio.create_task(_home_mem_flush_loop())
     yield
     broadcast_task.cancel()
     reconnect_task.cancel()
+    home_mem_task.cancel()
+    if _home_mem_dirty:
+        _save_home_memory()
     await _stop_homing()
     await _stop_pollers()
     await _teardown_runtime()
@@ -549,21 +606,31 @@ async def home_motor(req: HomeRequest):
     move onto the nearest face-1 orientation of its own displayed angle (face 1 =
     0° after Set Zero/Set Home), so it re-aligns onto the face without depending
     on a shared absolute origin. At most a 180° move; usually just re-squaring."""
-    if sequencer.active:
+    if sequencer is not None and sequencer.active:
         return {"error": "Sequence in progress"}
     targets = _resolve_targets(req.motor_key)
     failed = []
-    for key in targets:
-        try:
-            d = drivers[key]     # inside the try: a reload mid-loop fails one motor
-            st = await d.read_status()
-            raw = int(st.get("position_pulses", 0))
-            display_deg = d.pulses_to_deg(raw - zero_offsets.get(key, 0))
-            # nearest face-1 (multiple of 360) expressed as a relative delta
-            delta = round(display_deg / 360.0) * 360.0 - display_deg
-            await d.start_move("relative", delta, req.speed_rpm, req.accel, req.decel)
-        except Exception as e:
-            failed.append({"motor_key": key, "error": str(e)[:80]})
+
+    async def _one_bus(keys: list[str]) -> None:
+        for key in keys:
+            try:
+                d = drivers[key]     # inside the try: a reload mid-loop fails one motor
+                st = await _read_one_status(key)      # poller cache, already display-adjusted
+                if st.get("offline"):
+                    raise IOError("offline")
+                if not st.get("enabled"):
+                    await d.enable()                  # drives boot disabled after a power cycle
+                display_deg = float(st["position_deg"])
+                # nearest face-1 (multiple of 360) expressed as a relative delta
+                delta = round(display_deg / 360.0) * 360.0 - display_deg
+                await d.start_move("relative", delta, req.speed_rpm, req.accel, req.decel)
+            except Exception as e:
+                failed.append({"motor_key": key, "error": str(e)[:80]})
+
+    by_gw: dict[str, list[str]] = {}
+    for k in targets:
+        by_gw.setdefault(k.rsplit(".", 1)[0], []).append(k)
+    await asyncio.gather(*(_one_bus(keys) for keys in by_gw.values()))
     # Homing the whole array declares it back on face 1.
     if not req.motor_key:
         await show.set_current_page(1)

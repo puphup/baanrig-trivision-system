@@ -123,7 +123,7 @@ closed) and `root-setup.sh` (one-time GDM auto-login + linger, needs sudo).
 To update a running station:
 
 ```
-rsync -az --delete --exclude venv --exclude .git --exclude "Doc and info" ./ bannrig@<pc-ip>:~/trivision/
+rsync -az --delete --exclude venv --exclude .git --exclude "Doc and info" --exclude home_state.json ./ bannrig@<pc-ip>:~/trivision/
 ssh bannrig@<pc-ip> 'systemctl --user restart trivision.service; sleep 3; pkill -x firefox'
 ```
 
