@@ -45,8 +45,10 @@ class MotorSim:
         reports back over Modbus. Scale the incoming target so the two unit systems
         line up — otherwise feedback reads ENCODER_PPR/COMMAND_PPR times too small.
         """
-        if self.estopped or not self.enabled:
+        if not self.enabled:
             return
+        # ponytail: like the real iCL-RS, E-STOP only halts the current move; the next trigger runs
+        self.estopped = False
 
         from .registers import MODE_ABSOLUTE, MODE_RELATIVE
 
@@ -117,7 +119,7 @@ class MotorSim:
             dt = now - self._last_tick
             self._last_tick = now
 
-            if not self.enabled or self.estopped or not self.running:
+            if not self.enabled or not self.running:
                 continue
 
             self._tick(dt)

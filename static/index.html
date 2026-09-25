@@ -285,23 +285,27 @@
   /* ---- wall map ---- */
   .map-wrap { width:100%; overflow:hidden; background:var(--bg); border-radius:8px; }
   #wall-map { width:100%; height:auto; max-height:55vh; display:block; }
-  .prism polygon { fill:#555; stroke:#888; stroke-width:2.5; cursor:pointer; transition:fill .15s; }
-  .prism[data-face="1"] polygon { fill:#3b82f6; }
-  .prism[data-face="2"] polygon { fill:#22c55e; }
-  .prism[data-face="3"] polygon { fill:#f59e0b; }
-  .prism.offline polygon { fill:#333; stroke:#666; }
+  .prism { cursor:pointer; }
+  .prism .body { fill:#555; }
+  .prism .ring { fill:none; stroke:#888; stroke-width:2.5; }
+  .prism[data-face="1"] .body { fill:#c8cdd4; }          /* A silver   */
+  .prism[data-face="2"] .body { fill:#0a0a0c; }          /* B black    */
+  .prism[data-face="3"] .body { fill:url(#gC); }         /* C gradient */
+  .prism line { stroke-width:5; }                          /* the three faces seen from above; the base edge faces the corridor */
+  .prism .eA { stroke:#eef0f3; } .prism .eB { stroke:#111; } .prism .eC { stroke:url(#gC); }
+  .prism.offline .body { fill:#333; } .prism.offline .ring { stroke:#666; } .prism.offline line { opacity:.3; }
   /* .selected is declared first and is the ONLY rule that sets stroke-width,
      so a selected prism is always visibly thicker no matter what else is
      true of it. .moving/.alarm set stroke colour only, so they still win the
      colour cascade (declared later, same specificity) without the width
      ever masking the selection ring — no higher-specificity trick needed. */
-  .prism.selected polygon { stroke:var(--accent); stroke-width:6; }
-  .prism.moving polygon { stroke:#fbbf24; }
-  .prism.alarm polygon { stroke:#ef4444; }
+  .prism.selected .ring { stroke:var(--accent); stroke-width:6; }
+  .prism.moving .ring { stroke:#fbbf24; }
+  .prism.alarm .ring { stroke:#ef4444; }
   .prism.off { display:none; }
   .legend { font-size:.68rem; color:var(--text-dim); display:flex; gap:8px; align-items:center; }
   .legend .sw { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:3px; }
-  .legend .f1 { background:#3b82f6 } .legend .f2 { background:#22c55e } .legend .f3 { background:#f59e0b }
+  .legend .f1 { background:#c8cdd4 } .legend .f2 { background:#0a0a0c; border:1px solid #666 } .legend .f3 { background:linear-gradient(135deg,#d9ce5b,#e53385,#3e3d4b) }
   .legend .off { background:#333; border:1px solid #666 } .legend .alarm { border:2px solid #ef4444 } .legend .mov { border:2px solid #fbbf24 }
   .cab-tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
   .cab-btn { font-size:.72rem; padding:4px 8px; border-radius:6px; border:1px solid var(--border); background:var(--surface); cursor:pointer; }
@@ -519,12 +523,12 @@
     <div class="grid-card">
       <div class="grid-toolbar">
         <h2 style="margin:0">Wall</h2>
-        <span class="legend"><i class="sw f1"></i>Face 1 <i class="sw f2"></i>Face 2 <i class="sw f3"></i>Face 3 <i class="sw off"></i>Offline <i class="sw alarm"></i>Alarm <i class="sw mov"></i>Moving</span>
+        <span class="legend"><i class="sw f1"></i>A Silver <i class="sw f2"></i>B Monogram <i class="sw f3"></i>C Gradient <i class="sw off"></i>Offline <i class="sw alarm"></i>Alarm <i class="sw mov"></i>Moving</span>
         <span class="spacer"></span>
         <span class="counter" id="grid-count">0 motors</span>
       </div>
       <div class="cab-tabs" id="cab-tabs"></div>
-      <div class="map-wrap">
+      <div class="map-wrap" id="map-wrap">
         <svg id="wall-map" viewBox="250 600 2850 1120" preserveAspectRatio="xMidYMid meet"></svg>
       </div>
       <table class="cab-table" id="cab-table" hidden></table>
@@ -598,6 +602,7 @@
       <div class="field"><label for="pl-name">File name</label><input id="pl-name" placeholder="letters digits - _"></div>
       <button type="button" onclick="savePlaylist()">Save</button>
     </div>
+    <div id="pl-map"></div>
     <div class="grid-toolbar" style="margin-bottom:8px">
       <button type="button" class="btn-sm" onclick="plFold(true)">Collapse all</button>
       <button type="button" class="btn-sm" onclick="plFold(false)">Expand all</button>
@@ -632,6 +637,8 @@ function switchTab(name) {
   $$('.tab').forEach(el => el.classList.remove('active'));
   V('tab-' + name).classList.add('active');
   $$('.tab').forEach(el => { if (el.dataset.tab === name) el.classList.add('active'); });
+  // ponytail: one wall map, moved between the Control and Scenes tabs instead of drawn twice
+  if (name === 'scenes') V('pl-map').appendChild(V('map-wrap')); else V('cab-table').before(V('map-wrap'));
 }
 
 // ============================ WebSocket ============================
@@ -749,14 +756,25 @@ async function loadMotors() {
   }
 }
 
+let plFwd = { long: 'cw', short: 'ccw' };   // which direction word is A→B→C per wall (config.wall_forward)
+get('config').then(c => { if (c.wall_forward) plFwd = c.wall_forward; }).catch(() => {});
+// Top view of each prism: base edge = the face toward the corridor (A at home), the right edge comes
+// round next when the prism turns clockwise on screen. The short wall goes A→B→C the other way, so its
+// triangle is mirrored (scale -1) which also flips the on-screen spin. Long wall = motors 1…137.
+const plSign = m => plFwd[m.motor <= 137 ? 'long' : 'short'] === 'cw' ? 1 : -1;
 function renderMap() {
   const svg = V('wall-map');
   const ms = ((mapInv && mapInv.motors) || []).filter(m => m.x != null);
-  svg.innerHTML = ms.map(m => `
-    <g class="prism" data-key="${m.motor_key}" data-cab="${m.cabinet}" data-face="0"
+  svg.innerHTML = `<defs><linearGradient id="gC" gradientUnits="userSpaceOnUse" x1="-14" y1="0" x2="14" y2="0">
+      <stop offset="0" stop-color="#d9ce5b"/><stop offset=".5" stop-color="#e53385"/><stop offset="1" stop-color="#3e3d4b"/></linearGradient></defs>` + ms.map(m => `
+    <g class="prism" data-key="${m.motor_key}" data-cab="${m.cabinet}" data-face="0" data-sign="${plSign(m)}"
        transform="translate(${m.x} ${m.y}) rotate(${(m.apex_deg || 0) + 90})"
        onclick="selectMotor('${m.motor_key}')">
-      <polygon points="0,-16 14,10 -14,10" ${m.estimated ? 'stroke-dasharray="5 4"' : ''}></polygon>
+      <g class="spin" transform="scale(${plSign(m)} 1)">
+        <polygon class="body" points="0,-16 14,10 -14,10"></polygon>
+        <line class="eA" x1="-14" y1="10" x2="14" y2="10"/><line class="eB" x1="0" y1="-16" x2="14" y2="10"/><line class="eC" x1="-14" y1="10" x2="0" y2="-16"/>
+        <polygon class="ring" points="0,-21 18,12.5 -18,12.5" ${m.estimated ? 'stroke-dasharray="5 4"' : ''}></polygon>
+      </g>
       <title>${m.label} · Cab ${m.cabinet} · ID ${m.slave_id}</title>
     </g>
     <text class="plabel" x="${m.x}" y="${m.y + 1}" data-cab="${m.cabinet}">${m.motor}</text>`).join('');
@@ -771,6 +789,7 @@ function updateMap(d) {
   for (const g of $$('.prism')) {
     const st = motors[g.dataset.key] || {};
     g.dataset.face = st.current_face || 0;
+    g.querySelector('.spin').setAttribute('transform', `scale(${g.dataset.sign} 1) rotate(${st.position_deg || 0})`);
     g.classList.toggle('offline', !!st.offline);
     g.classList.toggle('alarm', !st.offline && !!st.alarm);
     g.classList.toggle('moving', !st.offline && !!st.running);
@@ -1133,8 +1152,7 @@ async function loadShowEffects() {
 
 // ============================ Scenes / playlists ============================
 // ponytail: step cards mirror the BAANRIG simulator editor; every change re-renders the list (no undo, no drag).
-let plDoc = null, plFwd = { long: 'cw', short: 'ccw' };   // which direction word is A→B→C per wall (config.wall_forward)
-get('config').then(c => { if (c.wall_forward) plFwd = c.wall_forward; }).catch(() => {});
+let plDoc = null;
 const PL_SEL = (v, opts) => opts.map(([val, txt]) => `<option value="${val}" ${val == v ? 'selected' : ''}>${txt}</option>`).join('');
 const PL_SEQ = { 1: 'Wave in · entrance → exit', 2: 'All together', 3: 'Wave out · exit → entrance' };
 const PL_RULE = [['next', 'Next'], ['stay', 'Stay'], ['A', '→ A'], ['B', '→ B'], ['C', '→ C']];
