@@ -49,6 +49,9 @@ CONFIG_PATH = _config_path()
 MAX_GATEWAYS = 16
 MAX_MOTORS_PER_GATEWAY = 32      # bounded by RS485 fan-out; wall uses up to 24
 MAX_TOTAL_MOTORS = 512
+# ponytail: one hard speed cap, enforced inside every driver so no route, show or playlist
+# can exceed it (2026-09-25: 40 shook the prisms). Quote the customer 10 rpm, keep 12 as the ceiling.
+MAX_RPM = 12
 
 # Legacy alias still imported by older modules; resolves to the new total cap.
 MAX_MOTORS = MAX_TOTAL_MOTORS

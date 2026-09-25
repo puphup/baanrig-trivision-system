@@ -13,7 +13,7 @@ from pathlib import Path
 
 APP_ID = "lv-trivision-corridor"
 APP_VERSION = 3
-MAX_RPM = 40                     # UI/driver cap: above this the prisms shake
+from .config import MAX_RPM      # hard cap shared with the drivers
 FACES = "ABC"                    # index 0/1/2 == our face 1/2/3
 RULES = ("stay", "next", "A", "B", "C")
 
@@ -31,7 +31,7 @@ def load_layout(path: str | Path) -> dict[int, tuple[str, float]]:
     return {n: (wall, (x_max - x) / (x_max - x_min)) for wall, n, x in pts}
 
 
-# ponytail: accel/decel registers are ms per 1000 rpm, so ramps last ≤ ~30 ms at 40 rpm
+# ponytail: accel/decel registers are ms per 1000 rpm, so ramps last ≤ ~25 ms at 12 rpm
 # (plus the S-curve filter) and are ignored; the runner waits for all-stopped anyway,
 # so a few ms of overrun is harmless.
 def rpm_for(turn_s: float, angle_deg: float) -> int:
@@ -64,7 +64,7 @@ def validate(doc: dict) -> tuple[list[str], list[str]]:
                 return None
             if not lo <= v <= hi:
                 errs.append(f"step {i}: {k} must be {lo:g}…{hi:g}"
-                            + (" s (40 rpm cap)" if k == "turn" else ""))
+                            + (f" s ({MAX_RPM} rpm cap)" if k == "turn" else ""))
             return v
         seq = s.get("seq")
         if seq not in (1, 2, 3):

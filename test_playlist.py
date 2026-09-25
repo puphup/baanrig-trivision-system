@@ -19,13 +19,13 @@ def test_layout():
 
 
 def test_rpm():
-    assert P.rpm_for(2.5, 120) == 8 and P.rpm_for(1.5, 120) == 13   # 120°/2.5 s = 8 rpm
+    assert P.rpm_for(2.5, 120) == 8 and P.rpm_for(2, 120) == 10 and P.rpm_for(1.5, 120) == P.MAX_RPM
     assert P.rpm_for(0.3, 120) == P.MAX_RPM                  # clamped
     assert P.rpm_for(100, 120) == 1
-    assert P.min_turn(120) == 0.5 and P.min_turn(240) == 1.0
+    assert abs(P.min_turn(120) - 5 / 3) < 1e-9 and abs(P.min_turn(240) - 10 / 3) < 1e-9
 
 
-STEP4 = {"seq": 3, "turn": 2.5, "nextAt": 12.5, "pauseAfter": 0, "odd": "A", "even": "A",
+STEP4 = {"seq": 3, "turn": 4, "nextAt": 14, "pauseAfter": 0, "odd": "A", "even": "A",
          "dirLong": "ccw", "dirShort": "cw", "angle": 240, "runs": 1, "sweep": 10}
 WF = {"long": "cw", "short": "ccw"}
 # 4 panels: two per wall. key -> (motor number, wall, s)
@@ -52,7 +52,7 @@ def test_plan_every_other_and_stay():
 
 
 def test_plan_next_240_wave_in():
-    step = {"seq": 1, "turn": 2, "nextAt": 12, "pauseAfter": 0, "odd": "next", "even": "next",
+    step = {"seq": 1, "turn": 4, "nextAt": 14, "pauseAfter": 0, "odd": "next", "even": "next",
             "dirLong": "cw", "dirShort": "ccw", "angle": 240, "runs": 1, "sweep": 10}
     moves = dict((k, (d, ms)) for k, d, ms in P.plan_step(step, {k: 0 for k in PANELS}, PANELS, WF))
     assert moves["gw7.5"] == (240.0, 0) and moves["gw1.1"] == (240.0, 10000)
@@ -82,7 +82,7 @@ async def _fire_moves_sim():
     try:
         keys = list(S.drivers)[:3]
         moves = [(keys[0], 120.0, 0), (keys[1], -240.0, 50), (keys[2], 0.0, 0)]
-        await S.show.fire_moves(S.drivers, moves, 40, 200, 200)
+        await S.show.fire_moves(S.drivers, moves, 12, 200, 200)
         await S.show.wait_all_stopped(S.drivers, timeout=20)
         st = [await S.drivers[k].read_status() for k in keys]
         assert abs(st[0]["position_deg"] - 120) < 1 and abs(st[1]["position_deg"] + 240) < 1, st
@@ -96,13 +96,13 @@ def test_fire_moves():
 
 
 CUSTOMER = {"app": P.APP_ID, "version": 3, "title": "customer test", "playlist": [
-    {"seq": 2, "turn": 1.5, "nextAt": 1.5, "pauseAfter": 0.5, "odd": "stay", "even": "stay",
+    {"seq": 2, "turn": 2, "nextAt": 2, "pauseAfter": 0.5, "odd": "stay", "even": "stay",
      "dirLong": "cw", "dirShort": "ccw", "angle": 120, "runs": 1, "sweep": 1},
-    {"seq": 1, "turn": 1.5, "nextAt": 2.5, "pauseAfter": 0.5, "odd": "B", "even": "B",
+    {"seq": 1, "turn": 2, "nextAt": 3, "pauseAfter": 0.5, "odd": "B", "even": "B",
      "dirLong": "cw", "dirShort": "ccw", "angle": 120, "runs": 1, "sweep": 1},
-    {"seq": 2, "turn": 1.5, "nextAt": 1.5, "pauseAfter": 0.5, "odd": "C", "even": "C",
+    {"seq": 2, "turn": 2, "nextAt": 2, "pauseAfter": 0.5, "odd": "C", "even": "C",
      "dirLong": "cw", "dirShort": "ccw", "angle": 120, "runs": 1, "sweep": 1},
-    {"seq": 3, "turn": 2.0, "nextAt": 3.0, "pauseAfter": 0, "odd": "A", "even": "A",
+    {"seq": 3, "turn": 4, "nextAt": 5, "pauseAfter": 0, "odd": "A", "even": "A",
      "dirLong": "ccw", "dirShort": "cw", "angle": 240, "runs": 1, "sweep": 1},
 ]}   # every step passes validate() and raises no warning
 
@@ -117,7 +117,7 @@ async def _runner_sim():
     try:
         # start from face B on one motor: the runner must home first
         k0 = next(iter(S.drivers))
-        await S.drivers[k0].start_move("relative", 120, 40, 200, 200)
+        await S.drivers[k0].start_move("relative", 120, 12, 200, 200)
         await S.show.wait_all_stopped(S.drivers, timeout=10)
         assert S.runner.start("customer", CUSTOMER, loop=False)
         assert not S.runner.start("customer", CUSTOMER)          # already running

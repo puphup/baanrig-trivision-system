@@ -147,7 +147,7 @@ wall. Import the simulator's saved JSON, or build one in the step editor (same f
 simulator. Files live in `playlists/` next to `config.json` (not synced to the kiosk).
 
 Limits enforced on save/import (the wall cannot do more): `angle` 120 or 240; `turn` at least
-`angle/240` seconds (0.5 s for 120°, 1.0 s for 240°, the 40 rpm cap) and at most 20 s; `sweep` 0–60 s; `pauseAfter` 0–600 s; `runs` 1–99; the walls must turn
+`angle/72` seconds (1.7 s for 120°, 3.4 s for 240°, the 12 rpm cap in `config.MAX_RPM`; quote customers 10 rpm) and at most 20 s; `sweep` 0–60 s; `pauseAfter` 0–600 s; `runs` 1–99; the walls must turn
 opposite. The next step starts at the later of "all motors stopped" and `nextAt`, plus `pauseAfter`,
 so a slow turn never shortens a hold. Face A is the home face; a playlist homes the wall (shortest
 path) before its first step if any motor is off face A. `config.json` → `wall_forward` says which

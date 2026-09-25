@@ -466,7 +466,7 @@ STATIC_DIR = _static_dir()
 class MoveRequest(BaseModel):
     motor_key: str
     angle_deg: float = 90.0
-    speed_rpm: int = 200
+    speed_rpm: int = 10
     accel: int = 200
     decel: int = 200
     mode: str = "relative"
@@ -475,7 +475,7 @@ class MoveRequest(BaseModel):
 class MotorParams(BaseModel):
     motor_key: str
     angle_deg: float = 90.0
-    speed_rpm: int = 200
+    speed_rpm: int = 10
     accel: int = 200
     decel: int = 200
 
@@ -509,7 +509,7 @@ class HomeRequest(BaseModel):
 class JogStartRequest(BaseModel):
     motor_key: str
     direction: int = 1
-    speed_rpm: int = 60
+    speed_rpm: int = 10
     accel: int = 200
     decel: int = 200
 

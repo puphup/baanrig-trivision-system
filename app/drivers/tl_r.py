@@ -38,6 +38,7 @@ Bit2=motor-running, Bit3=fault, Bit4=motor-enabled, Bit5/6=soft limits.
 
 from __future__ import annotations
 
+from ..config import MAX_RPM
 from ..modbus_interface import ModbusInterface
 from ..registers import (
     degrees_to_pulses, split_32, join_32_signed, pulses_to_degrees,
@@ -197,6 +198,7 @@ class TLRDriver(MotorDriver):
         await self.trigger_move()
 
     async def stage_move(self, mode, angle_deg, speed_rpm, accel, decel):
+        speed_rpm = min(int(speed_rpm), MAX_RPM)   # hard cap, see config.MAX_RPM
         """Write the single-positioning params (PA_034..038) but don't trigger.
         Remembers the mode so :meth:`trigger_move` knows abs vs rel."""
         pulses = (self.deg_to_pulses(angle_deg) if mode == "absolute"
@@ -223,6 +225,7 @@ class TLRDriver(MotorDriver):
         await self.modbus.write_registers(self.slave_id, PA_CONTROL_WORD, [bits])
 
     async def jog_start(self, direction, speed_rpm, accel, decel):
+        speed_rpm = min(int(speed_rpm), MAX_RPM)   # hard cap, see config.MAX_RPM
         """True TL-R jog: Bit 3 of the control word is a HELD level, not an
         edge. Speed + direction come from PA_030 (signed). We set the params
         then raise Bit 3 and leave it high — :meth:`jog_stop` drops it. This

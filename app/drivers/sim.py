@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ..config import MAX_RPM
 from ..motor_sim import MotorSim
 from ..registers import (
     MODE_ABSOLUTE, MODE_RELATIVE,
@@ -30,6 +31,7 @@ class SimDriver(MotorDriver):
         self.motor.disable()
 
     async def start_move(self, mode, angle_deg, speed_rpm, accel, decel):
+        speed_rpm = min(int(speed_rpm), MAX_RPM)   # hard cap, see config.MAX_RPM
         mode_val = MODE_ABSOLUTE if mode == "absolute" else MODE_RELATIVE
         # Relative moves carry the sub-pulse remainder (matches the real drivers)
         # so repeated 120° flips don't drift; absolute moves are exact as-is.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ..config import MAX_RPM
 from ..modbus_interface import ModbusInterface
 from ..registers import (
     PR0_MODE, PR0_TRIGGER, PR0_TRIGGER_VAL,
@@ -158,6 +159,7 @@ class ICLRSDriver(MotorDriver):
         await self.trigger_move()
 
     async def stage_move(self, mode, angle_deg, speed_rpm, accel, decel):
+        speed_rpm = min(int(speed_rpm), MAX_RPM)   # hard cap, see config.MAX_RPM
         """Write the PR0 motion block (mode/pos/vel/accel/decel) but don't fire
         the trigger. Pair with :meth:`trigger_move` for synchronized starts."""
         mode_val = MODE_ABSOLUTE if mode == "absolute" else MODE_RELATIVE

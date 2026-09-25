@@ -68,7 +68,7 @@ async def main():
     assert S.zero_offsets["gw2.1"] == 500 - 40000     # startup with no offset yet: trust memory
     r = await S.home_motor(S.HomeRequest(motor_key="gw1.1", speed_rpm=60))
     assert r["done"] == 1, r
-    await asyncio.sleep(1.5)
+    await asyncio.sleep(2.5)                       # 120° at the 12 rpm cap takes 1.7 s
     st = await S._read_one_status("gw1.1")
     assert abs(st["position_deg"]) < 1.0 and abs(sim.position) > 1.0, (st, sim.position)   # went home, not unwound
     assert S.home_memory["gw1.1"] == st["position_pulses"] and S._home_mem_dirty
