@@ -33,16 +33,16 @@ The header shows the system clock and the PC's IP address; the **Light** button 
   Colour = current face; grey = offline; amber = alarm. Click one to select it.
 - **Show controls** — Next / Previous / go-to-face, transition effect, speed,
   accel/decel and step timing, plus an auto-cycle with a hold time.
-- **Seek Home All** — drive-level DI3 home-switch homing across the whole wall;
-  cabinets run in parallel, motors within a cabinet are staggered. Progress shows
-  in the header.
+- **Seek Home** (selected motor) — drive-level DI3 home-switch homing. The server
+  only allows it on cabinets listed in `home_sensor_cabinets`; progress shows in
+  the header. There is no Seek Home All button until the whole wall has sensors.
 - **Selected motor** — position, status and alarm, manual absolute/relative moves,
   jog, enable/disable, Home, Set Zero, Set Home, alarm reset.
 
 **Cabinets tab**
 
 - Per-cabinet row: active IP, a **spare-IP** checkbox, motor count, online count.
-- **Seek Home** for one cabinet.
+- **Seek Home** for one cabinet — shown only for cabinets in `home_sensor_cabinets`.
 - **Commission** for one cabinet — fresh-drive setup (DI1 → software enable,
   DI3 = home switch, homing speeds, EEPROM save). Power-cycle the cabinet after.
 - **Register diagnostics** — raw holding-register read/write against the selected
@@ -123,9 +123,16 @@ closed) and `root-setup.sh` (one-time GDM auto-login + linger, needs sudo).
 To update a running station:
 
 ```
-rsync -az --delete --exclude venv --exclude .git --exclude "Doc and info" --exclude home_state.json ./ bannrig@<pc-ip>:~/trivision/
+rsync -az --delete --exclude venv --exclude .git --exclude "Doc and info" --exclude home_state.json --exclude config.json --exclude playlists ./ bannrig@<pc-ip>:~/trivision/
 ssh bannrig@<pc-ip> 'systemctl --user restart trivision.service; sleep 3; pkill -x firefox'
 ```
+
+To stop the station booting straight into this app (a desktop icon starts it on
+demand instead; used while another controller runs day to day), run on the PC
+`bash ~/trivision/deploy/switch-to-launcher.sh` — it removes the autostart,
+disables the service at boot, installs `deploy/trivision.desktop` on the desktop
+and reboots. To go back to kiosk boot: `cp ~/trivision/deploy/trivision-kiosk.desktop
+~/.config/autostart/ && systemctl --user enable trivision.service`.
 
 Restarting the service does not restart Firefox; killing Firefox makes `kiosk.sh`
 relaunch it. The pages are served with `Cache-Control: no-cache` so Firefox
@@ -133,10 +140,24 @@ revalidates on every launch. If a station still shows an old page, kill Firefox
 and delete `~/snap/firefox/common/.cache/mozilla/firefox/<profile>/cache2`
 before it relaunches.
 
+## Scenes / playlists
+
+The Scenes tab plays BAANRIG simulator playlists (`app: lv-trivision-corridor`, version 3) on the
+wall. Import the simulator's saved JSON, or build one in the step editor (same fields and face preview as the simulator) and Export it back to the
+simulator. Files live in `playlists/` next to `config.json` (not synced to the kiosk).
+
+Limits enforced on save/import (the wall cannot do more): `angle` 120 or 240; `turn` at least
+`angle/240` seconds (0.5 s for 120°, 1.0 s for 240°, the 40 rpm cap) and at most 20 s; `sweep` 0–60 s; `pauseAfter` 0–600 s; `runs` 1–99; the walls must turn
+opposite. The next step starts at the later of "all motors stopped" and `nextAt`, plus `pauseAfter`,
+so a slow turn never shortens a hold. Face A is the home face; a playlist homes the wall (shortest
+path) before its first step if any motor is off face A. `config.json` → `wall_forward` says which
+direction word (`cw`/`ccw`) means A→B→C on each wall; flip one if a wall is built the other way.
+
 ## Configuration
 
 `config.json`: `mode` (tcp|simulation), `map` (motor_map.json or bench_map.json),
-`use_spare` ([cabinet numbers]), `motion` (speed/accel/decel/step_ms).
+`use_spare` ([cabinet numbers]), `home_sensor_cabinets` ([cabinet numbers with wired
+DI3 home switches; Seek Home is refused everywhere else]), `motion` (speed/accel/decel/step_ms).
 
 Gateways and motors are read from the map file; regenerate it with
 `./venv/bin/python gen_motor_map.py` after `Trivision_Motor_Map.md` changes.

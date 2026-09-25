@@ -35,6 +35,7 @@ from .drivers import (
 )
 from .modbus_interface import ModbusInterface, SimulatedModbus, TcpModbus, RealModbus
 from .motor_sim import MotorSim
+from .playlist import PlaylistRunner, load_layout, validate as validate_playlist, APP_ID as PLAYLIST_APP
 from .sequencer import MultiMotorSequencer, MotorStep
 from .show import (
     ShowController, TransitionOptions, effects_catalog, face_for_position,
@@ -49,6 +50,48 @@ drivers: dict[str, MotorDriver] = {}             # motor_key → driver
 sim_motors: dict[str, MotorSim] = {}             # motor_key → simulator (sim mode only)
 sequencer: MultiMotorSequencer | None = None
 show: ShowController = ShowController()
+
+PLAYLIST_DIR = CONFIG_PATH.parent / "playlists"     # rsync must exclude it, like home_state.json
+_LAYOUT = load_layout(CONFIG_PATH.parent / "trivision_layout.json")
+
+
+def _panels() -> dict[str, tuple[int, str, float]]:
+    out = {}
+    for key, ex in config.get("motor_extras", {}).items():
+        wall, s = _LAYOUT[int(ex["motor"])]
+        out[key] = (int(ex["motor"]), wall, s)
+    return out
+
+
+async def _faces() -> dict[str, int]:
+    """Online motors only: key -> 0/1/2 (A/B/C) from the poller cache.
+
+    The poller refreshes one motor at a time (~21 reads per bus per sweep), so a
+    read right after wait_all_stopped() can land on a stale cache entry sampled
+    mid-flip; face_for_position would then report the face the motor just left.
+    Wait for every online entry to be stamped after this call started before
+    reading faces, so the runner's post-move plan/status always sees the stop.
+    """
+    t0 = time.monotonic()
+    deadline = t0 + 5.0    # ponytail: cap so a dead/stuck poller can't hang the runner forever
+    while time.monotonic() < deadline:
+        stale = any(status_cache.get(k, {}).get("t", 0) < t0
+                    for k in drivers if not status_cache.get(k, {}).get("offline"))
+        if not stale:
+            break
+        await asyncio.sleep(0.05)
+    out = {}
+    for key in drivers:
+        st = await _read_one_status(key)
+        if not st.get("offline") and st.get("current_face"):
+            out[key] = int(st["current_face"]) - 1
+    return out
+
+
+runner = PlaylistRunner(show, lambda: drivers, {}, _faces,
+                        lambda: _do_home(HomeRequest()),
+                        lambda: config["motion"], lambda: config["wall_forward"])
+
 ws_clients: set[WebSocket] = set()
 # Software zero offsets per motor key (encoder pulses)
 zero_offsets: dict[str, int] = {}
@@ -192,6 +235,7 @@ async def _reload_runtime():
             sequencer.cancel()
         # Cancel any running auto-cycle; its drivers map is about to be replaced.
         await show.stop_auto()
+        await runner.stop()
         await _stop_homing()
         await _stop_pollers()
         await _teardown_runtime()
@@ -199,6 +243,7 @@ async def _reload_runtime():
         gateways = new_g
         drivers = new_d
         sim_motors = new_s
+        runner.panels = _panels()
         sequencer = MultiMotorSequencer(drivers=drivers, motor_keys=list(drivers.keys()))
         await _start_pollers()
         # Fresh array → face 1 by convention.
@@ -295,6 +340,7 @@ async def _poll_cabinet(keys: list[str]) -> None:
             if not st.get("offline"):
                 ok += 1
                 _remember_position(key, st)
+                st["t"] = time.monotonic()     # when _faces() reads it, this can't be a stale sample
             else:
                 _seen_online.discard(key)
             status_cache[key] = st
@@ -377,6 +423,7 @@ async def lifespan(app: FastAPI):
     gateways = new_g
     drivers = new_d
     sim_motors = new_s
+    runner.panels = _panels()
     sequencer = MultiMotorSequencer(drivers=drivers, motor_keys=list(drivers.keys()))
     # Every modbus call runs in the default executor; the stock 32-thread pool
     # would serialize 11 cabinets behind each other. Not recomputed on reload —
@@ -548,6 +595,8 @@ async def get_status():
 async def move_motor(req: MoveRequest):
     if sequencer.active:
         return {"error": "Sequence in progress"}
+    if runner.state()["running"]:
+        return {"error": "Playlist running"}
     d = drivers.get(req.motor_key)
     if d is None:
         return {"error": f"Unknown motor {req.motor_key!r}"}
@@ -559,6 +608,8 @@ async def move_motor(req: MoveRequest):
 async def run_sequence(req: SequenceRequest):
     if sequencer.active:
         return {"error": "Sequence already running"}
+    if runner.state()["running"]:
+        return {"error": "Playlist running"}
     if not req.motors:
         return {"error": "No motors in sequence"}
     steps = [
@@ -582,6 +633,8 @@ async def run_sequence(req: SequenceRequest):
 async def jog_start(req: JogStartRequest):
     if sequencer.active:
         return {"error": "Sequence in progress"}
+    if runner.state()["running"]:
+        return {"error": "Playlist running"}
     d = drivers.get(req.motor_key)
     if d is None:
         return {"error": f"Unknown motor {req.motor_key!r}"}
@@ -608,6 +661,13 @@ async def home_motor(req: HomeRequest):
     on a shared absolute origin. At most a 180° move; usually just re-squaring."""
     if sequencer is not None and sequencer.active:
         return {"error": "Sequence in progress"}
+    if runner.state()["running"]:
+        return {"error": "Playlist running"}
+    return await _do_home(req)
+
+
+async def _do_home(req: HomeRequest) -> dict:
+    # ponytail: the runner calls this directly, bypassing the route guard above
     targets = _resolve_targets(req.motor_key)
     failed = []
 
@@ -643,6 +703,8 @@ async def seek_home(req: SeekHomeRequest):
     Cabinets run in parallel; motors inside a cabinet are staggered 200 ms."""
     if (sequencer is not None and sequencer.active) or homing_state["active"]:
         return {"error": "Sequence or homing in progress"}
+    if runner.state()["running"]:
+        return {"error": "Playlist running"}
     if req.motor_key:
         targets = _resolve_targets(req.motor_key)
     elif req.cabinet is not None:
@@ -651,7 +713,17 @@ async def seek_home(req: SeekHomeRequest):
             raise HTTPException(status_code=404, detail=f"unknown cabinet {req.cabinet}")
     else:
         targets = list(drivers.keys())
-    whole_wall = not req.motor_key and req.cabinet is None
+    # Without a wired DI3 switch a drive spins forever looking for one, so only
+    # cabinets listed in config "home_sensor_cabinets" may seek. Key "gw7.3" = cabinet 7.
+    sensored = {f"gw{c}" for c in config.get("home_sensor_cabinets", [])}
+    ok = [k for k in targets if k.rsplit(".", 1)[0] in sensored]
+    if req.motor_key or req.cabinet is not None:
+        if len(ok) != len(targets):
+            return {"error": "No home sensor on that cabinet (config home_sensor_cabinets)"}
+    targets = ok                 # "whole wall" = every sensored cabinet
+    if not targets:
+        return {"error": "No cabinet has home sensors (config home_sensor_cabinets)"}
+    whole_wall = len(targets) == len(drivers)     # only a true full-wall run resets the show to face 1
     homing_state.update({"active": True, "total": len(targets), "done": 0, "failed": []})
     by_gw: dict[str, list[str]] = {}
     for k in targets:
@@ -820,6 +892,7 @@ async def reconnect():
 
 @app.post("/api/estop")
 async def estop():
+    await runner.stop()
     await sequencer.emergency_stop_all()
     return {"ok": True}
 
@@ -900,6 +973,7 @@ async def motors_inventory():
     cabs = cabinet_summary(_map_path(config), config.get("use_spare", []))
     for c in cabs:
         c["motor_keys"] = _keys_for_cabinet(c["cabinet"])
+        c["home_sensor"] = c["cabinet"] in config.get("home_sensor_cabinets", [])
     return {"cabinets": cabs, "motors": data["inventory"],
             "motion": config.get("motion", {}), "mode": config.get("mode")}
 
@@ -939,6 +1013,8 @@ _BUSY_MSG = "Motors still finishing the last flip — wait until they stop."
 async def show_next(req: TransitionRequest = TransitionRequest()):
     if sequencer is not None and sequencer.active:
         return {"error": "Sequence in progress"}
+    if runner.state()["running"]:
+        return {"error": "Playlist running"}
     fired = await show.next_page(drivers, _opts_from(req))
     return {"ok": fired, "rejected": not fired,
             "error": None if fired else _BUSY_MSG, **show.state()}
@@ -948,6 +1024,8 @@ async def show_next(req: TransitionRequest = TransitionRequest()):
 async def show_prev(req: TransitionRequest = TransitionRequest()):
     if sequencer is not None and sequencer.active:
         return {"error": "Sequence in progress"}
+    if runner.state()["running"]:
+        return {"error": "Playlist running"}
     fired = await show.prev_page(drivers, _opts_from(req))
     return {"ok": fired, "rejected": not fired,
             "error": None if fired else _BUSY_MSG, **show.state()}
@@ -957,6 +1035,8 @@ async def show_prev(req: TransitionRequest = TransitionRequest()):
 async def show_goto(req: TransitionRequest):
     if sequencer is not None and sequencer.active:
         return {"error": "Sequence in progress"}
+    if runner.state()["running"]:
+        return {"error": "Playlist running"}
     if req.target_page is None:
         return {"error": "target_page required"}
     fired = await show.goto(drivers, int(req.target_page), _opts_from(req))
@@ -978,6 +1058,7 @@ async def show_set_current_page(req: TransitionRequest):
 
 @app.post("/api/show/auto/start")
 async def show_auto_start(req: AutoCycleRequest):
+    await runner.stop()
     await show.start_auto(drivers, req.hold_s, req.direction, _opts_from(req))
     return {"ok": True, **show.state()}
 
@@ -986,6 +1067,92 @@ async def show_auto_start(req: AutoCycleRequest):
 async def show_auto_stop():
     await show.stop_auto()
     return {"ok": True, **show.state()}
+
+
+# ---------------------------------------------------------------------------
+# Playlists (simulator JSON, stored verbatim in playlists/<name>.json)
+# ---------------------------------------------------------------------------
+
+class PlaylistRunRequest(BaseModel):
+    loop: bool = False
+
+
+def _playlist_path(name: str) -> Path | None:
+    import re
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", name or "") or name in ("state", "stop"):
+        return None
+    return PLAYLIST_DIR / f"{name}.json"
+
+
+@app.get("/api/playlists")
+async def playlist_list():
+    out = []
+    for p in sorted(PLAYLIST_DIR.glob("*.json")) if PLAYLIST_DIR.exists() else []:
+        try:
+            doc = json.loads(p.read_text())
+            out.append({"name": p.stem, "title": doc.get("title", p.stem), "steps": len(doc["playlist"])})
+        except Exception:
+            continue      # a hand-edited broken file just doesn't list
+    return {"playlists": out}
+
+
+@app.get("/api/playlists/state")
+async def playlist_state():
+    return runner.state()
+
+
+@app.get("/api/playlists/{name}")
+async def playlist_get(name: str):
+    p = _playlist_path(name)
+    if p is None or not p.exists():
+        raise HTTPException(404, "no such playlist")
+    return json.loads(p.read_text())
+
+
+@app.put("/api/playlists/{name}")
+async def playlist_put(name: str, doc: dict):
+    """Import / save. The body is the simulator document; errors block, warnings don't."""
+    p = _playlist_path(name)
+    if p is None:
+        return {"error": "name: letters, digits, - and _ only (not state/stop)"}
+    errs, warns = validate_playlist(doc)
+    if errs:
+        return {"error": "; ".join(errs), "errors": errs, "warnings": warns}
+    PLAYLIST_DIR.mkdir(exist_ok=True)
+    tmp = p.with_suffix(".tmp")
+    tmp.write_text(json.dumps(doc, indent=1))
+    os.replace(tmp, p)
+    return {"ok": True, "name": name, "warnings": warns}
+
+
+@app.delete("/api/playlists/{name}")
+async def playlist_delete(name: str):
+    p = _playlist_path(name)
+    if p is None or not p.exists():
+        raise HTTPException(404, "no such playlist")
+    p.unlink()
+    return {"ok": True}
+
+
+@app.post("/api/playlists/{name}/run")
+async def playlist_run(name: str, req: PlaylistRunRequest = PlaylistRunRequest()):
+    if sequencer is not None and sequencer.active:
+        return {"error": "Sequence in progress"}
+    if homing_state["active"]:
+        return {"error": "Seek Home in progress"}
+    doc = await playlist_get(name)
+    errs, _ = validate_playlist(doc)
+    if errs:
+        return {"error": errs[0], "errors": errs}
+    if not runner.start(name, doc, req.loop):
+        return {"error": "A playlist, auto-cycle or flip is still running"}
+    return {"ok": True, **runner.state()}
+
+
+@app.post("/api/playlists/stop")
+async def playlist_stop():
+    await runner.stop()
+    return {"ok": True, **runner.state()}
 
 
 @app.get("/api/limits")
@@ -1083,7 +1250,7 @@ async def get_config():
     return {
         "ip": _local_ip(),
         **{k: config.get(k) for k in
-           ("mode", "map", "use_spare", "motion", "motor_defaults", "server")},
+           ("mode", "map", "use_spare", "home_sensor_cabinets", "wall_forward", "motion", "motor_defaults", "server")},
         "limits": {
             "max_gateways": MAX_GATEWAYS,
             "max_motors_per_gateway": MAX_MOTORS_PER_GATEWAY,
@@ -1221,5 +1388,6 @@ async def _build_status() -> dict:
         "inventory": inventory,
         "sequence": seq_info,
         "show": show.state(),
+        "playlist": runner.state(),
         "homing": homing_state,
     }

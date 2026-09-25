@@ -237,6 +237,35 @@
   .cab-table th, .cab-table td { padding:6px 8px; border-bottom:1px solid var(--border); text-align:left; }
   .cab-table td.offline { color:#888; } .cab-table td.alarm { color:#ef4444; }
 
+  /* --- Scenes: step cards, modelled on the BAANRIG simulator editor ------ */
+  .step { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; margin-bottom: 8px; }
+  .step.live { border-color: var(--green); box-shadow: 0 0 6px var(--green); }
+  .step .head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .step .fold { background: none; border: 0; padding: 0 4px; color: var(--text-dim); }
+  .step .no { font-size: .7rem; letter-spacing: .15em; color: var(--accent); font-weight: 600; }
+  .step .dur, .step .summary { font-size: .72rem; color: var(--text-dim); white-space: nowrap; }
+  .step .summary { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .step .tools { margin-left: auto; display: flex; gap: 4px; }
+  .step.collapsed .head { margin-bottom: 0; }
+  .step.collapsed .grid4, .step.collapsed .warn { display: none; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .grid4 .field { margin: 0; min-width: 0; }
+  .grid4 .span2 { grid-column: span 2; } .grid4 .span4 { grid-column: span 4; }
+  .grid4 .off { opacity: .35; }
+  .grid4 em, .faceseq em { font-style: normal; font-size: .65rem; color: var(--text-dimmer); }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; }
+  .seg button { border-radius: 0; font-size: .72rem; padding: 5px 4px; }
+  .seg button:first-child { border-radius: 5px 0 0 5px; } .seg button:last-child { border-radius: 0 5px 5px 0; }
+  .seg button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .faceseq { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: .75rem; color: var(--text-dim); min-height: 30px; }
+  .faceseq .f { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 3px; font-weight: 700; font-size: .75rem; color: #111; border: 1px solid var(--border); }
+  .f-A { background: linear-gradient(135deg, #f4f6f8, #a9b1ba); }
+  .f-B { background: #0a0a0c; color: #c8c8c8 !important; }
+  .f-C { background: linear-gradient(135deg, #d9ce5b, #e53385, #3e3d4b); color: #fff !important; text-shadow: 0 0 3px rgba(0,0,0,.5); }
+  .step .warn { color: var(--red); font-size: .72rem; margin-top: 6px; }
+  .pl-note { font-size: .7rem; color: var(--text-dim); }
+  @media (max-width: 640px) { .grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid4 .span4 { grid-column: span 2; } }
+
   /* --- Toast ------------------------------------------------------------- */
   .toast {
     position: fixed; bottom: 20px; right: 20px; padding: 10px 16px;
@@ -327,6 +356,7 @@
     <div class="tabs">
       <button type="button" class="tab active" data-tab="control" onclick="switchTab('control')">Control</button>
       <button type="button" class="tab" data-tab="cabinets" onclick="switchTab('cabinets')">Cabinets</button>
+      <button type="button" class="tab" data-tab="scenes" onclick="switchTab('scenes'); loadPlaylists()">Scenes</button>
     </div>
   </div>
   <div>
@@ -350,6 +380,7 @@
       <button type="button" id="btn-enable-all" class="btn-primary" onclick="doToggleEnableAll()">Enable All</button>
       <button type="button" class="btn-primary" onclick="doHomeAll()" title="Software home: every motor turns the short way (max half a turn) onto face 1. Enables drives that boot disabled.">Home the Wall</button>
       <button type="button" onclick="doSetHomeAll()" title="Make the CURRENT position home for every motor (remembered across power cycles). Resets show to face 1.">Set Home All</button>
+      <button type="button" class="btn-warning" id="btn-seek-cab" hidden onclick="doSeekHomeCab(activeTab)" title="Home every motor in this cabinet to its DI3 home switch (cabinets in config home_sensor_cabinets only)">Seek Home</button>
       <button type="button" onclick="doSave()">Save Params</button>
       <button type="button" id="btn-reconnect" onclick="doReconnect()" title="Rebuild gateway connections and the live status link.">Reconnect</button>
       <span class="spacer"></span>
@@ -477,6 +508,7 @@
             <button type="button" onclick="doHome()">Home</button>
             <button type="button" onclick="doSetZero()" title="Software display offset only">Set Zero</button>
             <button type="button" onclick="doSetHome()" title="Store current position as drive origin, saved to EEPROM">Set Home</button>
+            <button type="button" onclick="doSeekHome()" title="Drive homes to its DI3 home switch. Only works on cabinets listed in config home_sensor_cabinets.">Seek Home</button>
             <button type="button" class="btn-warning" onclick="doAlarmReset()">Reset Alarm</button>
           </div>
         </div>
@@ -545,6 +577,40 @@
   </div>
 </div>
 
+<!-- ============== SCENES TAB ============== -->
+<div id="tab-scenes" class="tab-content">
+  <div class="grid-card">
+    <div class="grid-toolbar">
+      <h2 style="margin:0">Scenes</h2>
+      <select id="pl-select" onchange="openPlaylist(this.value)"></select>
+      <button type="button" class="btn-sm" onclick="newPlaylist()">New</button>
+      <button type="button" class="btn-sm" onclick="V('pl-file').click()">Import</button>
+      <input type="file" id="pl-file" accept=".json" hidden onchange="importPlaylist(this.files[0])">
+      <a id="pl-export" class="btn-sm" download style="display:none" onclick="exportPlaylist(this)">Export</a>
+      <button type="button" class="btn-sm btn-warning" onclick="deletePlaylist()">Delete</button>
+      <span class="spacer" style="flex:1"></span>
+      <button type="button" class="btn-success" onclick="runPlaylist(false)">Run</button>
+      <button type="button" class="btn-success" onclick="runPlaylist(true)">Run loop</button>
+      <button type="button" class="btn-warning" onclick="api('playlists/stop')">Stop</button>
+    </div>
+    <div class="field-row">
+      <div class="field" style="grid-column: span 2"><label for="pl-title">Title</label><input id="pl-title"></div>
+      <div class="field"><label for="pl-name">File name</label><input id="pl-name" placeholder="letters digits - _"></div>
+      <button type="button" onclick="savePlaylist()">Save</button>
+    </div>
+    <div class="grid-toolbar" style="margin-bottom:8px">
+      <button type="button" class="btn-sm" onclick="plFold(true)">Collapse all</button>
+      <button type="button" class="btn-sm" onclick="plFold(false)">Expand all</button>
+      <span class="pl-note" id="pl-cycle" style="margin-left:auto"></span>
+    </div>
+    <div id="pl-steps"></div>
+    <button type="button" class="btn-sm" onclick="addStep()">+ Add step</button>
+    <pre id="pl-msg" style="font-size:.72rem; white-space:pre-line"></pre>
+    <div id="pl-status" style="font-size:.8rem; margin-top:6px">idle</div>
+    <div style="font-size:.7rem;color:var(--text-dim)">Faces: A Silver, B Monogram, C Gradient. Walls always turn opposite ways. Turn time ≥ angle/240 s (40 rpm cap).</div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -607,6 +673,7 @@ function onStatus(data) {
   updateHeaderBadges(data);
   updateEnableAllButton(data);
   updateShowState(data.show || {});
+  updatePlaylistState(data.playlist);
   V('seq-phase').textContent = data.sequence.phase + (data.sequence.error ? ` (${data.sequence.error})` : '');
 }
 
@@ -780,6 +847,9 @@ function applyTab() {
   document.body.classList.toggle('tab-cab', activeTab !== 'wall');   // shows .plabel (hover <title> is unreachable on touch)
   for (const g of $$('.prism, .plabel')) g.classList.toggle('off', activeTab !== 'wall' && String(activeTab) !== g.dataset.cab);
   renderCabinetTable();
+  const sensored = !!(mapInv && mapInv.cabinets.find(c => c.cabinet === activeTab && c.home_sensor));
+  V('btn-seek-cab').hidden = !sensored;
+  V('btn-seek-cab').textContent = `Seek Home Cab ${activeTab}`;
   if (lastData) { updateMap(lastData); updateCabinetTabs(lastData); }
 }
 
@@ -817,8 +887,18 @@ function updateHoming(h) {
   el.textContent = `homing ${h.done}/${h.total}` + (h.failed.length ? ` (${h.failed.length} failed)` : '');
 }
 
-// ponytail: Seek Home buttons removed until DI3 home switches are wired —
-// without a switch the drive spins looking for one. /api/seek-home still exists.
+// ponytail: Seek Home is back only for cabinets in config "home_sensor_cabinets"
+// (server refuses the rest: without a switch the drive spins looking for one).
+// No Seek Home All button until the whole wall has sensors.
+async function doSeekHome() {
+  if (!selectedKey) return;
+  const r = await api('seek-home', { motor_key: selectedKey });
+  if (!r.error) showToast(`Seek Home: ${selectedKey} homing to switch…`, 'success');
+}
+async function doSeekHomeCab(n) {
+  const r = await api('seek-home', { cabinet: n });
+  if (!r.error) showToast(`Seek Home: cabinet ${n}, ${r.total} motors homing…`, 'success');
+}
 
 // Selected-motor panel show/hide, persisted across refreshes.
 function applyFocusCollapsed() {
@@ -1051,6 +1131,162 @@ async function loadShowEffects() {
   } catch {}
 }
 
+// ============================ Scenes / playlists ============================
+// ponytail: step cards mirror the BAANRIG simulator editor; every change re-renders the list (no undo, no drag).
+let plDoc = null, plFwd = { long: 'cw', short: 'ccw' };   // which direction word is A→B→C per wall (config.wall_forward)
+get('config').then(c => { if (c.wall_forward) plFwd = c.wall_forward; }).catch(() => {});
+const PL_SEL = (v, opts) => opts.map(([val, txt]) => `<option value="${val}" ${val == v ? 'selected' : ''}>${txt}</option>`).join('');
+const PL_SEQ = { 1: 'Wave in · entrance → exit', 2: 'All together', 3: 'Wave out · exit → entrance' };
+const PL_RULE = [['next', 'Next'], ['stay', 'Stay'], ['A', '→ A'], ['B', '→ B'], ['C', '→ C']];
+const PL_TEXT = ['odd', 'even', 'dirLong', 'dirShort', 'note'];
+const plChip = f => `<span class="f f-${'ABC'[f]}">${'ABC'[f]}</span>`;
+function blankStep() {
+  return { seq: 2, turn: 2, sweep: 10, nextAt: 2, pauseAfter: 8, runs: 1, odd: 'next', even: 'next',
+           dirLong: 'cw', dirShort: 'ccw', angle: 120, note: '' };
+}
+async function loadPlaylists(select) {
+  const r = await get('playlists');
+  const sel = V('pl-select');
+  sel.innerHTML = r.playlists.map(p => `<option value="${p.name}">${p.title} (${p.steps})</option>`).join('');
+  const name = select || sel.value;
+  if (name) { sel.value = name; openPlaylist(name); } else newPlaylist();
+}
+async function openPlaylist(name) {
+  plDoc = await get('playlists/' + name);
+  V('pl-name').value = name;
+  renderPlaylist();
+}
+function newPlaylist() {
+  plDoc = { app: 'lv-trivision-corridor', version: 3, title: 'New playlist', playlist: [blankStep()] };
+  V('pl-name').value = '';
+  renderPlaylist();
+}
+// Long-wall face per parity group before/after each step, all starting on A like the simulator.
+function plFaces() {
+  const f = { odd: 0, even: 0 };
+  return (plDoc.playlist || []).map(s => {
+    const out = {}, dir = s.dirLong === plFwd.long ? 1 : -1;
+    for (const p of ['odd', 'even']) {
+      const cur = f[p];
+      const k = s[p] === 'stay' ? 0 : s[p] === 'next' ? (s.angle == 240 ? 2 : 1) : ((dir * ('ABC'.indexOf(s[p]) - cur)) % 3 + 3) % 3;
+      f[p] = ((cur + dir * (s[p] === 'next' ? k * s.runs : k)) % 3 + 3) % 3;
+      out[p] = { from: cur, to: f[p], k };
+    }
+    return out;
+  });
+}
+function renderPlaylist() {
+  V('pl-title').value = plDoc.title || '';
+  const steps = plDoc.playlist || [], faces = plFaces();
+  V('pl-steps').innerHTML = steps.map((s, i) => {
+    const next = s.odd === 'next' || s.even === 'next', wave = s.seq != 2;
+    const dirs = { long: s.dirLong, short: s.dirShort };
+    // a "Next" turn lands on A→B→C only when the direction is the wall's forward word at 120°, or the opposite one at 240°
+    const wrong = ['long', 'short'].filter(w => (dirs[w] === plFwd[w]) === (s.angle == 240)).map(w => w + ' side');
+    const num = (k, label, unit, step, min, max, off) => `<div class="field${off ? ' off' : ''}"><label>${label}</label>
+      <input type="number" data-i="${i}" data-k="${k}" value="${s[k]}" step="${step}" min="${min}" max="${max}" ${off ? 'disabled' : ''}><em>${unit}</em></div>`;
+    const seg = (k, label) => `<div class="field span2"><label>${label}</label><div class="seg">${['cw', 'ccw'].map(d =>
+      `<button type="button" class="${s[k] === d ? 'active' : ''}" onclick="plSet(${i},'${k}','${d}')">${d === 'cw' ? '↻ CW' : '↺ CCW'}</button>`).join('')}</div></div>`;
+    const part = (l, g) => `<span>${l}</span>${plChip(g.from)}${g.k ? `→ ${plChip(g.to)}<em>${g.k * 120}°</em>` : '<em>stays</em>'}`;
+    const rt = r => r.length === 1 ? '→ ' + r : r;
+    const summary = PL_SEQ[s.seq] + (s.odd === 'next' && s.even === 'next' ? '' : ` · odd ${rt(s.odd)} · even ${rt(s.even)}`);
+    return `<div class="step${s.collapsed ? ' collapsed' : ''}">
+      <div class="head">
+        <button type="button" class="fold" onclick="plSet(${i},'collapsed',${!s.collapsed})">${s.collapsed ? '▸' : '▾'}</button>
+        <span class="no">STEP ${i + 1}</span><span class="dur">≈ ${(s.runs * s.nextAt + s.pauseAfter).toFixed(1)} s</span>
+        <span class="summary">${s.collapsed ? summary : ''}</span>
+        <span class="tools">
+          <button type="button" class="btn-sm" onclick="plMove(${i},-1)" ${i ? '' : 'disabled'}>↑</button>
+          <button type="button" class="btn-sm" onclick="plMove(${i},1)" ${i < steps.length - 1 ? '' : 'disabled'}>↓</button>
+          <button type="button" class="btn-sm" onclick="plDel(${i})">✕</button>
+        </span>
+      </div>
+      <div class="grid4">
+        <div class="field span4"><label>Sequence</label><select data-i="${i}" data-k="seq">${PL_SEL(s.seq, [1, 2, 3].map(n => [n, n + ' · ' + PL_SEQ[n]]))}</select></div>
+        <div class="field"><label>Odd panels</label><select data-i="${i}" data-k="odd">${PL_SEL(s.odd, PL_RULE)}</select></div>
+        <div class="field"><label>Even panels</label><select data-i="${i}" data-k="even">${PL_SEL(s.even, PL_RULE)}</select></div>
+        ${num('runs', 'Runs', 'times', 1, 1, 99)}
+        <div class="field${next ? '' : ' off'}"><label>Angle</label><select data-i="${i}" data-k="angle" ${next ? '' : 'disabled'}>${PL_SEL(s.angle, [[120, '120°'], [240, '240°']])}</select><em>${next ? 'per turn' : 'by faces'}</em></div>
+        ${num('turn', 'Turn', `s / turn · min ${s.angle / 240}`, 0.1, s.angle / 240, 20)}
+        ${num('sweep', 'Wave', 's across', 0.5, 0, 60, !wave)}
+        ${num('nextAt', 'Next at', 'seconds', 0.5, 0, 3600)}
+        ${num('pauseAfter', 'Pause', 's after', 0.5, 0, 600)}
+        ${seg('dirLong', 'Long side')}${seg('dirShort', 'Short side')}
+        <div class="field span4"><label>Faces in this step · long wall</label><div class="faceseq">${part('Odd', faces[i].odd)}${part('Even', faces[i].even)}</div></div>
+        <div class="field span4"><label>Note</label><input data-i="${i}" data-k="note" value="${(s.note || '').replace(/"/g, '&quot;')}"></div>
+      </div>
+      ${s.dirLong === s.dirShort ? '<div class="warn">The two walls must turn opposite ways.</div>' : ''}
+      ${next && wrong.length ? `<div class="warn">${wrong.join(' and ')} would not go A → B → C on a “Next” turn — flip the direction or use the other angle.</div>` : ''}
+    </div>`;
+  }).join('');
+  const end = faces[faces.length - 1] || { odd: { to: 0 }, even: { to: 0 } };
+  V('pl-cycle').textContent = end.odd.to === 0 && end.even.to === 0
+    ? 'Ends with every prism back on A — loops seamlessly.'
+    : `Ends with odd on ${'ABC'[end.odd.to]}, even on ${'ABC'[end.even.to]} — a loop homes back to A first.`;
+  V('pl-export').style.display = '';
+}
+function exportPlaylist(a) {   // runs before the link's default download, so the href is fresh
+  readPlaylistInputs();
+  if (a.href.startsWith('blob:')) URL.revokeObjectURL(a.href);
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(plDoc, null, 1)], { type: 'application/json' }));
+  a.download = (V('pl-name').value || 'playlist') + '.json';
+}
+function readPlaylistInputs() {
+  plDoc.title = V('pl-title').value;
+  $$('#pl-steps [data-k]').forEach(el => {
+    const s = plDoc.playlist[+el.dataset.i], k = el.dataset.k;
+    s[k] = PL_TEXT.includes(k) ? el.value : +el.value;
+  });
+}
+V('pl-steps').addEventListener('change', e => { if (e.target.dataset.k) { readPlaylistInputs(); renderPlaylist(); } });
+function plSet(i, k, v) { readPlaylistInputs(); plDoc.playlist[i][k] = v; renderPlaylist(); }
+function plMove(i, d) { readPlaylistInputs(); const l = plDoc.playlist; [l[i], l[i + d]] = [l[i + d], l[i]]; renderPlaylist(); }
+function plDel(i) { readPlaylistInputs(); plDoc.playlist.splice(i, 1); renderPlaylist(); }
+function plFold(on) { readPlaylistInputs(); plDoc.playlist.forEach(s => { s.collapsed = on; }); renderPlaylist(); }
+function addStep() {   // like the simulator: copy the last step with the next sequence shape
+  readPlaylistInputs();
+  const l = plDoc.playlist ||= [], last = l[l.length - 1];
+  l.push(last ? { ...last, seq: last.seq % 3 + 1, collapsed: false } : blankStep());
+  renderPlaylist();
+}
+async function savePlaylist() {
+  readPlaylistInputs();
+  const name = V('pl-name').value.trim();
+  if (!name) { showToast('File name required', 'danger'); return; }
+  const res = await fetch('/api/playlists/' + name, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(plDoc) });
+  const r = await res.json();
+  V('pl-msg').textContent = (r.errors || []).concat((r.warnings || []).map(w => 'warning: ' + w)).join('\n');
+  if (r.error) showToast(r.error, 'danger'); else { showToast('Saved', 'success'); loadPlaylists(name); }
+}
+async function importPlaylist(file) {
+  if (!file) return;
+  let doc = null;
+  try { doc = JSON.parse(await file.text()); } catch {}
+  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) { showToast('Not a playlist JSON file', 'danger'); return; }
+  plDoc = doc;
+  V('pl-name').value = file.name.replace(/\.json$/i, '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 64);
+  renderPlaylist();
+  savePlaylist();
+}
+async function deletePlaylist() {
+  const name = V('pl-name').value.trim();
+  if (!name || !confirm(`Delete playlist "${name}"?`)) return;
+  await fetch('/api/playlists/' + name, { method: 'DELETE' });
+  loadPlaylists();
+}
+async function runPlaylist(loop) {
+  const name = V('pl-name').value.trim();
+  if (!name) { showToast('Save the playlist first', 'danger'); return; }
+  await api(`playlists/${name}/run`, { loop });
+}
+function updatePlaylistState(p) {
+  if (!p) return;
+  V('pl-status').textContent = p.running
+    ? `running ${p.name}: step ${p.step}/${p.steps} run ${p.run} — ${p.phase}${p.loop ? ' (loop)' : ''}${p.failed.length ? ' — stuck: ' + p.failed.join(' ') : ''}`
+    : (p.phase === 'error' ? 'error — see server log' : 'idle');
+  $$('#pl-steps .step').forEach((el, i) => el.classList.toggle('live', p.running && p.name === V('pl-name').value && i === p.step - 1));
+}
+
 function _showBody(targetPage) {
   return {
     effect: V('show-effect').value,
@@ -1106,7 +1342,8 @@ function renderCabinets(d) {
       <td><input type="checkbox" ${usingSpare ? 'checked' : ''} ${c.spare ? '' : 'disabled'} onchange="toggleSpare(${c.cabinet}, this.checked)"> ${c.spare || '—'}</td>
       <td>${c.motor_keys.length}</td>
       <td id="cab-online-${c.cabinet}">—</td>
-      <td><button type="button" class="btn-warning" onclick="doCommission(${c.cabinet})" title="Fresh drives only: DI1 off, DI3 home switch, homing 3/1 rpm, save. Power-cycle the cabinet afterwards.">Commission</button></td>
+      <td><button type="button" class="btn-warning" onclick="doCommission(${c.cabinet})" title="Fresh drives only: DI1 off, DI3 home switch, homing 3/1 rpm, save. Power-cycle the cabinet afterwards.">Commission</button>
+        ${c.home_sensor ? `<button type="button" onclick="doSeekHomeCab(${c.cabinet})" title="Home every motor in this cabinet to its DI3 switch">Seek Home</button>` : ''}</td>
     </tr>`;
   }).join('');
   updateCabinetCounts(d);

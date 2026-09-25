@@ -9,6 +9,7 @@ from app.config import load_config
 async def main():
     cfg = load_config()
     cfg["mode"] = "simulation"          # never touch real gateways from a test
+    cfg["home_sensor_cabinets"] = list(range(1, 12))   # seek-home only runs on sensored cabinets
     S.config = cfg
     await S._reload_runtime()
     try:

@@ -206,12 +206,17 @@ class ShowController:
             raise
         # Clear busy in the background once every motor has stopped, so the
         # HTTP call returns immediately (the button doesn't hang for the move).
-        self._settle_task = asyncio.create_task(self._settle(drivers))
+        self.settle(drivers)
         return True
+
+    def settle(self, drivers) -> None:
+        """Mark busy until every motor has stopped (cleared in the background)."""
+        self.busy = True
+        self._settle_task = asyncio.create_task(self._settle(drivers))
 
     async def _settle(self, drivers):
         try:
-            await self._wait_all_stopped(drivers)
+            await self.wait_all_stopped(drivers)
         finally:
             self.busy = False
 
@@ -300,7 +305,14 @@ class ShowController:
         self.last_transition_at_motor_count = len(keys)
 
         delta_deg = delta_pages * PAGE_STEP_DEG
+        await self.fire_moves(drivers, [(k, delta_deg, dly) for k, dly in schedule],
+                              opts.speed_rpm, opts.accel, opts.decel)
 
+    async def fire_moves(self, drivers: dict[str, MotorDriver], moves: list[tuple[str, float, int]],
+                         speed_rpm: int, accel: int, decel: int) -> None:
+        """Enable → stage every (key, delta_deg) → trigger each on its delay_ms.
+        Two-phase so all triggers are a single tiny write and start within a few
+        ms per bus; effects and playlists both come through here."""
         # Auto-enable every motor before firing. A Trivision controller is
         # operationally weird if "Next face" silently no-ops because the motors
         # happen to be disabled — much friendlier to just arm them on demand.
@@ -312,7 +324,7 @@ class ShowController:
                 await d.enable()
             except Exception:
                 pass
-        await asyncio.gather(*(_arm(k) for k, _ in schedule))
+        await asyncio.gather(*(_arm(k) for k, _, _ in moves))
 
         # Two-phase start for tight synchronization:
         #   1) STAGE every motor's target/speed/accel up front (the slow part —
@@ -324,16 +336,15 @@ class ShowController:
         #      fire back-to-back and the array starts within a few ms per bus.
         #      Staggered effects (wave, etc.) just delay the trigger, which is
         #      now cheap and precise since staging is already done.
-        async def _stage(motor_key: str):
+        async def _stage(motor_key: str, delta_deg: float):
             d = drivers.get(motor_key)
             if d is None:
                 return
             try:
-                await d.stage_move("relative", delta_deg, opts.speed_rpm,
-                                   opts.accel, opts.decel)
+                await d.stage_move("relative", delta_deg, speed_rpm, accel, decel)
             except Exception:
                 pass
-        await asyncio.gather(*(_stage(k) for k, _ in schedule))
+        await asyncio.gather(*(_stage(k, dd) for k, dd, _ in moves))
 
         async def _trigger(motor_key: str, delay_ms: int):
             if delay_ms > 0:
@@ -345,21 +356,23 @@ class ShowController:
                 await d.trigger_move()
             except Exception:
                 pass
-        await asyncio.gather(*(_trigger(k, dly) for k, dly in schedule))
+        await asyncio.gather(*(_trigger(k, dly) for k, _, dly in moves))
 
-    async def _wait_all_stopped(self, drivers: dict[str, MotorDriver],
-                                timeout: float = 60.0) -> None:
+    # ponytail: the old early-return on "auto not running" also cut the manual settle short; stop() is explicit now.
+    async def wait_all_stopped(self, drivers: dict[str, MotorDriver],
+                               timeout: float = 60.0, stop=None) -> None:
         """Block until every motor reports not-running, so the NEXT flip can't
         interrupt a motor still mid-rotation (which would shift its face off by
         the un-finished angle). Offline motors read not-running so they don't
         block; a safety timeout means one genuinely-stuck motor can't freeze
-        the whole cycle."""
+        the whole cycle. ``stop`` is a zero-arg callable returning True to
+        abandon the wait early (e.g. auto-cycle was stopped mid-flip)."""
         # Give the moves a moment to actually start before we poll, otherwise
         # a just-triggered motor still reads 'in position' from the prior face.
         await asyncio.sleep(0.4)
         waited = 0.4
         while waited < timeout:
-            if not self.auto.running:
+            if stop is not None and stop():
                 return
             sts = await asyncio.gather(
                 *(d.read_status() for d in drivers.values()),
@@ -379,7 +392,7 @@ class ShowController:
                 await self._step(drivers, +1 if self.auto.direction >= 0 else -1, opts)
                 # 2) Wait until EVERY motor has finished this rotation — so the
                 #    next flip never interrupts a still-moving motor.
-                await self._wait_all_stopped(drivers)
+                await self.wait_all_stopped(drivers, stop=lambda: not self.auto.running)
                 if not self.auto.running:
                     return
                 # 3) Hold on the now fully-settled face.

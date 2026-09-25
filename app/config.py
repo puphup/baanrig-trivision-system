@@ -67,6 +67,10 @@ DEFAULTS = {
     "mode": "simulation",
     "map": "motor_map.json",
     "use_spare": [],
+    "home_sensor_cabinets": [],   # cabinets with a wired DI3 home switch: the only ones Seek Home may run on
+    # which simulator direction word means A→B→C (our +120°) on each wall; flip a word
+    # if a wall turns out to be built the other way round (TRIVISION_SIMULATOR.md CONFIRM #1/#4)
+    "wall_forward": {"long": "cw", "short": "ccw"},
     "motion": {"speed": 5, "accel": 500, "decel": 900, "step_ms": 200},
     # No gateways/motors here on purpose: load_map() is the only source of both.
     "motor_defaults": {"command_ppr": 4000, "encoder_ppr": 4000},
@@ -217,6 +221,13 @@ def _normalize(cfg: dict) -> dict:
         cfg["use_spare"] = sorted({int(n) for n in (cfg.get("use_spare") or [])})
     except (TypeError, ValueError):
         cfg["use_spare"] = list(DEFAULTS["use_spare"])
+    try:
+        cfg["home_sensor_cabinets"] = sorted({int(n) for n in (cfg.get("home_sensor_cabinets") or [])})
+    except (TypeError, ValueError):
+        cfg["home_sensor_cabinets"] = []
+    wf = cfg.get("wall_forward") or {}
+    cfg["wall_forward"] = {w: (wf.get(w) if wf.get(w) in ("cw", "ccw") else DEFAULTS["wall_forward"][w])
+                           for w in ("long", "short")}
     mo_in = cfg.get("motion") or {}
     motion = {}
     for k, default_v in DEFAULTS["motion"].items():
@@ -263,7 +274,7 @@ def load_config() -> dict:
     return _normalize(cfg)
 
 
-_PERSISTED = ("mode", "map", "use_spare", "motion", "motor_defaults", "server")
+_PERSISTED = ("mode", "map", "use_spare", "home_sensor_cabinets", "wall_forward", "motion", "motor_defaults", "server")
 
 
 def save_config(cfg: dict):

@@ -18,3 +18,6 @@ windows-build/
 .vscode/
 .idea/
 home_state.json
+
+# Runtime playlists, next to config.json (not synced to the kiosk)
+playlists/

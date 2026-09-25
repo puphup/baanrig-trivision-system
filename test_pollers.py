@@ -33,6 +33,15 @@ async def main():
     S.config["motor_extras"]["gw2.1"] = {"motor": 2, "label": "M002", "cabinet": 2, "x": 3.0, "y": 4.0, "apex_deg": 0.0, "estimated": False}
     await S._start_pollers()
     r = await S.seek_home(S.SeekHomeRequest(cabinet=2))
+    assert "error" in r and sim2.position == 777.0, r     # no sensor listed → refused
+    S.config["home_sensor_cabinets"] = [2]
+    r = await S.seek_home(S.SeekHomeRequest())             # "wall" = sensored cabinets only
+    assert r == {"ok": True, "total": 1}, r
+    await asyncio.sleep(1.8)
+    assert sim2.position == 0.0 and sim.position == 4000.0     # cabinet 1 untouched
+    sim2.position = 777.0
+    S.config["home_sensor_cabinets"] = [1, 2]
+    r = await S.seek_home(S.SeekHomeRequest(cabinet=2))
     assert r == {"ok": True, "total": 1}, r
     await asyncio.sleep(1.8)                       # 1 s settle + poll in _zero_display_after_homing
     assert sim2.position == 0.0 and sim.position == 4000.0
