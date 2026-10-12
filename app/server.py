@@ -115,6 +115,8 @@ _poll_tasks: list[asyncio.Task] = []
 _home_tasks: list[asyncio.Task] = []
 # Progress of the in-flight /api/seek-home run (single run at a time).
 homing_state: dict = {"active": False, "total": 0, "done": 0, "failed": []}
+HOME_TIMEOUT_S = 120.0      # fast search + 1 rpm approach; site motors finish well inside this
+_homing_gws: set[str] = set()      # gateways with a seek-home run in flight; cabinets home in parallel
 
 
 def _motor_specs() -> list[dict]:
@@ -412,6 +414,7 @@ async def _stop_homing() -> None:
     if tasks:
         await asyncio.gather(*tasks, return_exceptions=True)
     _home_tasks.clear()
+    _homing_gws.clear()
     homing_state.update({"active": False, "total": 0, "done": 0, "failed": []})
 
 
@@ -701,8 +704,8 @@ async def _do_home(req: HomeRequest) -> dict:
 async def seek_home(req: SeekHomeRequest):
     """Drive-level DI3 homing. One motor, one cabinet, or the whole wall.
     Cabinets run in parallel; motors inside a cabinet are staggered 200 ms."""
-    if (sequencer is not None and sequencer.active) or homing_state["active"]:
-        return {"error": "Sequence or homing in progress"}
+    if sequencer is not None and sequencer.active:
+        return {"error": "Sequence in progress"}
     if runner.state()["running"]:
         return {"error": "Playlist running"}
     if req.motor_key:
@@ -724,11 +727,18 @@ async def seek_home(req: SeekHomeRequest):
     if not targets:
         return {"error": "No cabinet has home sensors (config home_sensor_cabinets)"}
     whole_wall = len(targets) == len(drivers)     # only a true full-wall run resets the show to face 1
-    homing_state.update({"active": True, "total": len(targets), "done": 0, "failed": []})
     by_gw: dict[str, list[str]] = {}
     for k in targets:
         by_gw.setdefault(k.rsplit(".", 1)[0], []).append(k)
-    _home_tasks.clear()          # one run at a time; the last run's tasks are done
+    busy = sorted(int(g[2:]) for g in by_gw if g in _homing_gws)
+    if busy:
+        return {"error": f"Cabinet {', '.join(map(str, busy))} is already homing"}
+    if homing_state["active"]:   # another cabinet is still homing: add to its progress
+        homing_state["total"] += len(targets)
+    else:
+        homing_state.update({"active": True, "total": len(targets), "done": 0, "failed": []})
+    _homing_gws.update(by_gw)
+    _home_tasks[:] = [t for t in _home_tasks if not t.done()]
     _home_tasks.append(asyncio.create_task(_seek_home_wall(list(by_gw.values()), whole_wall)))
     return {"ok": True, "total": len(targets)}
 
@@ -753,8 +763,10 @@ async def _seek_home_cabinet(keys: list[str]) -> None:
             d = drivers[key]     # a reload mid-loop must fail this motor, not the run
             if not hasattr(d, "seek_home"):
                 raise TypeError("no home-switch homing on this driver")
+            await d.enable()     # drives boot disabled; a disabled drive ignores the homing trigger
+            await asyncio.sleep(0.1)
             await d.seek_home()
-            t = asyncio.create_task(_zero_display_after_homing(key))
+            t = asyncio.create_task(_zero_display_after_homing(key, time.monotonic()))
             zero_tasks.append(t)
             _home_tasks.append(t)
         except Exception as e:
@@ -773,10 +785,11 @@ async def _seek_home_wall(groups: list[list[str]], whole_wall: bool) -> None:
         if whole_wall and not homing_state["failed"]:
             await show.set_current_page(1)
     finally:
-        homing_state["active"] = False
+        _homing_gws.difference_update(g[0].rsplit(".", 1)[0] for g in groups)
+        homing_state["active"] = bool(_homing_gws)
 
 
-async def _zero_display_after_homing(key: str) -> None:
+async def _zero_display_after_homing(key: str, since: float) -> None:
     """Homing zeroes the drive's origin but not the absolute counter the UI
     shows (same quirk as Set Home), so once the motor stops, capture the
     software offset so the tile reads 0 at the switch.
@@ -784,13 +797,22 @@ async def _zero_display_after_homing(key: str) -> None:
     Reads the poller cache, never the bus: 231 of these watchers each doing
     their own read_status() would saturate every gateway for the whole run."""
     await asyncio.sleep(1.0)
-    deadline = time.monotonic() + 120.0       # ponytail: give up after 2 min
+    deadline = time.monotonic() + HOME_TIMEOUT_S
     while time.monotonic() < deadline:
         st = status_cache.get(key)
-        if st and not st.get("running") and not st.get("offline"):
+        if st and st.get("t", 0) > since + 0.5 and not st.get("running") and not st.get("offline"):
             zero_offsets[key] = int(st.get("position_pulses", 0))
             return
         await asyncio.sleep(0.5)
+    # Switch never seen (dead/miswired sensor): stop it and servo-off, don't spin forever.
+    try:
+        d = drivers[key]
+        await d.estop()
+        await asyncio.sleep(0.3)
+        await d.disable()
+    except Exception:
+        pass
+    homing_state["failed"].append({"motor_key": key, "error": "no home switch within 120 s, stopped and disabled"})
 
 
 @app.post("/api/commission")

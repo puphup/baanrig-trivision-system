@@ -385,6 +385,7 @@
       <button type="button" class="btn-primary" onclick="doHomeAll()" title="Software home: every motor turns the short way (max half a turn) onto face 1. Enables drives that boot disabled.">Home the Wall</button>
       <button type="button" onclick="doSetHomeAll()" title="Make the CURRENT position home for every motor (remembered across power cycles). Resets show to face 1.">Set Home All</button>
       <button type="button" class="btn-warning" id="btn-seek-cab" hidden onclick="doSeekHomeCab(activeTab)" title="Home every motor in this cabinet to its DI3 home switch (cabinets in config home_sensor_cabinets only)">Seek Home</button>
+      <button type="button" class="btn-warning" id="btn-seek-all" hidden onclick="doSeekHomeAll()" title="Sensor homing of the whole wall: every motor in every cabinet listed in config home_sensor_cabinets runs to its DI3 switch (cabinets in parallel). Show resets to face 1 when all are done.">Seek Home All</button>
       <button type="button" onclick="doSave()">Save Params</button>
       <button type="button" id="btn-reconnect" onclick="doReconnect()" title="Rebuild gateway connections and the live status link.">Reconnect</button>
       <span class="spacer"></span>
@@ -869,6 +870,7 @@ function applyTab() {
   const sensored = !!(mapInv && mapInv.cabinets.find(c => c.cabinet === activeTab && c.home_sensor));
   V('btn-seek-cab').hidden = !sensored;
   V('btn-seek-cab').textContent = `Seek Home Cab ${activeTab}`;
+  V('btn-seek-all').hidden = !(mapInv && mapInv.cabinets.some(c => c.home_sensor));
   if (lastData) { updateMap(lastData); updateCabinetTabs(lastData); }
 }
 
@@ -901,14 +903,18 @@ function updateCabinetTable(d) {
 
 function updateHoming(h) {
   const el = V('homing-count');
-  if (!h || !h.active) { el.hidden = true; return; }
+  // ponytail: failures stay listed until the next run starts (gw9.5 = cab 9 id 5)
+  const bad = h ? h.failed.map(f => f.motor_key.replace(/^gw(\d+)\.(\d+)$/, 'cab $1 id $2')) : [];
+  if (!h || (!h.active && !bad.length)) { el.hidden = true; return; }
   el.hidden = false;
-  el.textContent = `homing ${h.done}/${h.total}` + (h.failed.length ? ` (${h.failed.length} failed)` : '');
+  el.textContent = (h.active ? `homing ${h.done}/${h.total}` : `homed ${h.total - bad.length}/${h.total}`)
+    + (bad.length ? `, not homed: ${bad.join(', ')}` : '');
+  el.title = h.failed.map(f => `${f.motor_key}: ${f.error}`).join('\n');
 }
 
 // ponytail: Seek Home is back only for cabinets in config "home_sensor_cabinets"
 // (server refuses the rest: without a switch the drive spins looking for one).
-// No Seek Home All button until the whole wall has sensors.
+// Seek Home All appears once any cabinet is listed there (server homes only the sensored ones).
 async function doSeekHome() {
   if (!selectedKey) return;
   const r = await api('seek-home', { motor_key: selectedKey });
@@ -917,6 +923,11 @@ async function doSeekHome() {
 async function doSeekHomeCab(n) {
   const r = await api('seek-home', { cabinet: n });
   if (!r.error) showToast(`Seek Home: cabinet ${n}, ${r.total} motors homing…`, 'success');
+}
+async function doSeekHomeAll() {
+  if (!confirm('Seek Home All: every motor runs to its home sensor at 3 rpm. Continue?')) return;
+  const r = await api('seek-home', {});
+  if (!r.error) showToast(`Seek Home All: ${r.total} motors homing to their switches…`, 'success');
 }
 
 // Selected-motor panel show/hide, persisted across refreshes.

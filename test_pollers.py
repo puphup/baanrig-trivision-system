@@ -53,6 +53,25 @@ async def main():
     assert S.show.state()["current_page"] == 1
     c = await S.commission(S.CabinetRequest(cabinet=2))
     assert c["done"] == 0 and c["failed"][0]["motor_key"] == "gw2.1"
+    # per-cabinet buttons: two cabinets home in parallel, the same one twice is refused,
+    # and homing enables the drive first (drives boot disabled)
+    sim.disable(); sim2.disable(); sim.position = 4000.0; sim2.position = 777.0
+    assert (await S.seek_home(S.SeekHomeRequest(cabinet=1))) == {"ok": True, "total": 1}
+    assert "already homing" in (await S.seek_home(S.SeekHomeRequest(cabinet=1)))["error"]
+    assert (await S.seek_home(S.SeekHomeRequest(cabinet=2))) == {"ok": True, "total": 1}
+    assert S.homing_state["total"] == 2 and S.homing_state["active"]
+    await asyncio.sleep(2.0)
+    assert sim.position == 0.0 and sim2.position == 0.0 and sim.enabled and sim2.enabled
+    assert S.homing_state["done"] == 2 and not S.homing_state["active"] and not S._homing_gws
+    # no switch found: e-stopped, disabled, reported failed
+    async def never_finds(): sim2.running = True
+    S.drivers["gw2.1"].seek_home = never_finds
+    S.HOME_TIMEOUT_S = 1.0
+    await S.seek_home(S.SeekHomeRequest(cabinet=2))
+    await asyncio.sleep(3.0)
+    assert sim2.estopped and not sim2.enabled and not sim2.running, vars(sim2)
+    assert S.homing_state["failed"][0]["motor_key"] == "gw2.1" and not S.homing_state["active"]
+    S.HOME_TIMEOUT_S = 120.0; del S.drivers["gw2.1"].seek_home; sim2.clear_estop()
     await S._stop_pollers()
 
     # --- software-home memory: a drive that comes up reading 0 (power cycle) is

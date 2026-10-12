@@ -2,6 +2,7 @@
   "mode": "simulation",
   "map": "motor_map.json",
   "use_spare": [],
+  "home_sensor_cabinets": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
   "motion": {
     "speed": 5,
     "accel": 500,

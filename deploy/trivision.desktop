@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Trivision
+Comment=Open the Trivision wall controller
+Exec=/home/bannrig/trivision/deploy/launch.sh
+Icon=firefox
+Terminal=false

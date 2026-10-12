@@ -35,7 +35,12 @@ The header shows the system clock and the PC's IP address; the **Light** button 
   accel/decel and step timing, plus an auto-cycle with a hold time.
 - **Seek Home** (selected motor) — drive-level DI3 home-switch homing. The server
   only allows it on cabinets listed in `home_sensor_cabinets`; progress shows in
-  the header. There is no Seek Home All button until the whole wall has sensors.
+  the header. **Seek Home All** (toolbar, shown once any cabinet has sensors) homes
+  every sensored cabinet in parallel and resets the show to face 1 when all are done.
+- **Seek Home Cab N** (cabinet tab toolbar, and each row of the cabinet table) homes one
+  cabinet: each drive is enabled, then homes to its switch. Several cabinets can home at
+  once. A motor that hasn't found its switch after 120 s is stopped and powered off; the
+  header lists it as "not homed: cab N id M".
 - **Selected motor** — position, status and alarm, manual absolute/relative moves,
   jog, enable/disable, Home, Set Zero, Set Home, alarm reset.
 
