@@ -150,7 +150,7 @@ class TransitionOptions:
 @dataclass
 class AutoCycle:
     running: bool = False
-    direction: int = 1               # +1 = forward, -1 = backward
+    direction: int = 1               # +1 = forward, -1 = backward, 0 = random face each flip
     hold_s: float = 5.0
     effect: str = "wave"
     options: TransitionOptions = field(default_factory=TransitionOptions)
@@ -254,7 +254,7 @@ class ShowController:
         await self.stop_auto()
         self.auto = AutoCycle(
             running=True,
-            direction=1 if direction >= 0 else -1,
+            direction=(direction > 0) - (direction < 0),   # 0 = random
             hold_s=max(0.5, float(hold_s)),
             effect=opts.effect,
             options=opts,
@@ -389,7 +389,9 @@ class ShowController:
             while True:
                 opts = self.auto.options
                 # 1) Flip to the next face.
-                await self._step(drivers, +1 if self.auto.direction >= 0 else -1, opts)
+                # ponytail: random = ±1 step at random; from any face that lands on one of the
+                #           other two, so the wall never "changes" to the face it's already on.
+                await self._step(drivers, self.auto.direction or random.choice((1, -1)), opts)
                 # 2) Wait until EVERY motor has finished this rotation — so the
                 #    next flip never interrupts a still-moving motor.
                 await self.wait_all_stopped(drivers, stop=lambda: not self.auto.running)

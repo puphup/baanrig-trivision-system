@@ -32,7 +32,7 @@ The header shows the system clock and the PC's IP address; the **Light** button 
 - **Wall map** — all 231 prisms drawn at their real positions and apex angles.
   Colour = current face; grey = offline; amber = alarm. Click one to select it.
 - **Show controls** — Next / Previous / go-to-face, transition effect, speed,
-  accel/decel and step timing, plus an auto-cycle with a hold time.
+  accel/decel and step timing, plus an auto-cycle with a hold time (forward, backward or random face).
 - **Seek Home** (selected motor) — drive-level DI3 home-switch homing. The server
   only allows it on cabinets listed in `home_sensor_cabinets`; progress shows in
   the header. **Seek Home All** (toolbar, shown once any cabinet has sensors) homes
@@ -61,7 +61,7 @@ over a WebSocket; a background poller per cabinet keeps the bus load flat.
 Open `http://<server-ip>:8000/operator` on the tablet and add it to the home screen
 (iPad: Share → Add to Home Screen; Android Chrome: menu → Add to Home screen) so it
 runs full-screen. It has only wall-wide controls: hold-to-fire E-STOP with Enable all,
-Prev / Next face, auto-cycle, Home the wall with Cancel (which e-stops the drives —
+Prev / Next face, auto-cycle (random face), Home the wall with Cancel (which e-stops the drives —
 `seek_home()` is fire-and-forget so cancelling can't just stop tracking), Alarm reset,
 Reconnect, and a per-cabinet health list. Anyone on the network with the URL can use it.
 

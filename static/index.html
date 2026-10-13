@@ -444,6 +444,7 @@
           <select id="auto-dir">
             <option value="1">Forward (1→2→3→1)</option>
             <option value="-1">Backward (1→3→2→1)</option>
+            <option value="0">Random face</option>
           </select>
         </div>
         <button type="button" id="btn-auto" class="btn-success" onclick="toggleAuto()">Start auto-cycle</button>
@@ -701,7 +702,7 @@ function updateShowState(show) {
   autoRunning = !!auto.running;
   V('auto-led').classList.toggle('on', autoRunning);
   V('auto-status').textContent = autoRunning
-    ? `running (${auto.effect}, ${auto.hold_s}s hold, ${auto.direction > 0 ? '▶' : '◀'})`
+    ? `running (${auto.effect}, ${auto.hold_s}s hold, ${auto.direction > 0 ? '▶' : auto.direction < 0 ? '◀' : 'random'})`
     : 'stopped';
   V('btn-auto').textContent = autoRunning ? 'Stop auto-cycle' : 'Start auto-cycle';
   V('btn-auto').className = autoRunning ? 'btn-danger' : 'btn-success';

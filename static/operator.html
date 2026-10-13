@@ -197,7 +197,7 @@ async function enableAll(btn) {
 
 async function toggleAuto(btn) {
   if (autoRunning) await act(btn, 'show/auto/stop', {}, () => 'Auto stopped');
-  else await act(btn, 'show/auto/start', { hold_s: 5, direction: 1 }, () => 'Auto started');
+  else await act(btn, 'show/auto/start', { hold_s: 5, direction: 0 }, () => 'Auto started');
 }
 
 // ---- Live status ----
